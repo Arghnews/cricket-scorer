@@ -1,0 +1,38 @@
+Current build is with 3 esps
+One reads input from i2c and sends using TCP to another over a socket
+One acts as access point (router)
+One receives input over TCP socket and sets outputs over i2c
+
+Notes
+    Devices when plugged into PC appear as /dev/ttyUSB[0-9]
+    picocom - terminal emulator on small devices
+        picocom /dev/ttyUSB0 --baud 115200
+    ampy - python tool to interface with the file system on the esp8266
+        ampy --port /dev/ttyUSB0 --baud 115200 ls
+        ampy --port /dev/ttyUSB0 --baud 115200 ls
+    copyOverFiles.sh - copies file in src/.*\.py to esp8266 as main.py
+        also copies common.py so I don't forget to
+        # Make changes
+        # Run this and hit <C-d> to soft reset esp8266 to see what it does
+        ./copyOverFiles.sh src/access_point.py && picocom /dev/ttyUSB0 -b 115200
+    esptool.py - tool to blast binary onto esp
+        # Writes flash onto esp from .bin file
+        # Can also use to erase flash
+        esptool.py -p /dev/ttyUSB0 --baud 115200 write_flash --flash_size=detect 0 esp8266-20180511-v1.9.4.bin
+    20180511-v1.9.4.bin - binary image of micropython for esp from internet
+
+
+
+# modules in here
+# build firmware to flash in above folder
+#
+/home/justin/micropython/esp8266/scripts
+
+# use this to copy files to the esp8266
+ampy --port /dev/ttyUSB0 --baud 115200 put main.py /main.py
+
+# to flash the esp
+esptool.py -p /dev/ttyUSB0 --baud 460800 write_flash --flash_size=detect 0 build/firmware-combined.bin
+
+# to open a prompt to the esp
+picocom /dev/ttyUSB0 --baud 115200
