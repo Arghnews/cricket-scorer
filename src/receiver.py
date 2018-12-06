@@ -20,20 +20,6 @@ def i2c_write(i2c, addr, sub_byte, val):
     b = i2c.writeto(addr, val)
     i2c.writeto(addr, b"\x00")
 
-code_to_digit = {
-        0xff: 0x7e,
-        0xfe: 0x30,
-        0xfd: 0x6d,
-        0xfc: 0x79,
-        0xfb: 0x33,
-
-        0xfa: 0x5b,
-        0xf9: 0x5f,
-        0xf8: 0x70,
-        0xf7: 0x7f,
-        0xf6: 0x7b,
-        }
-
 pin = Pin(2, Pin.OUT)
 pin.value(1) # Active low, turn off
 station = station_init(RECEIVER_IP)
@@ -64,7 +50,9 @@ try:
 
             print("Setting digits")
             for (b, (mux, chan)) in zip(bytearray(msg), mux_channels):
-                i2c_write(i2c, mux, chan, bytes([code_to_digit[b]]))
+                i2c_write(i2c, mux, chan, bytes([b]))
+
+            time.sleep(1)
         except OSError as e:
             print("Socket read error: " + str(e))
         finally:

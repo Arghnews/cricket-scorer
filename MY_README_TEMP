@@ -1,3 +1,15 @@
+TODO:
+    Improve handling of errors/timeouts for socket stuff
+    Ie. consider changing to select poll like example etc.
+    Nice not to have to catch everywhere etc.
+
+    I2c calls can currently throw - nice to fix
+
+    Leading zero suppression
+    Proper sending of unlit segment data
+    Nicer error handling with blinks etc. - if needed
+    Add optimisation stuff like const
+
 Current build is with 3 esps
 One reads input from i2c and sends using TCP to another over a socket
 One acts as access point (router)
@@ -23,6 +35,7 @@ Notes
 
 
 
+# OLD ------
 # modules in here
 # build firmware to flash in above folder
 #

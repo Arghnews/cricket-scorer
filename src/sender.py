@@ -28,6 +28,21 @@ def tcp_connect(ip, port, socket_timeout = 5):
         sock.close()
     return None
 
+# FIXME: change this
+code_to_digit = {
+        0xff: 0x7e,
+        0xfe: 0x30,
+        0xfd: 0x6d,
+        0xfc: 0x79,
+        0xfb: 0x33,
+
+        0xfa: 0x5b,
+        0xf9: 0x5f,
+        0xf8: 0x70,
+        0xf7: 0x7f,
+        0xf6: 0x7b,
+        }
+
 pin = Pin(2, Pin.OUT)
 pin.value(1) # Active low, turn off
 station = station_init(SENDER_IP)
@@ -56,10 +71,14 @@ try:
     while True:
         vals = bytearray()
         for mux, chan in mux_channels:
-            vals.append(int.from_bytes(i2c_read(i2c, mux, chan), sys.byteorder))
+            # FIXME: add leading zero stuff + how to read wrong values
+            # switch to dict get
+            val = int.from_bytes(i2c_read(i2c, mux, chan), sys.byteorder)
+            vals.append(code_to_digit[val])
         assert len(vals) == MESSAGE_LEN
         print("Sending " + str(len(vals)) + " bytes: " + str(vals))
         sock.write(bytes(vals))
+        time.sleep(1)
 finally:
     print("Cleaning up")
     if sock is not None:
