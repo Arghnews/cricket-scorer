@@ -17,7 +17,7 @@ def init_listen_socket(port):
 
 def i2c_write(i2c, addr, sub_byte, val):
     i2c.writeto(addr, sub_byte)
-    b = i2c.writeto(addr, val)
+    b = i2c.writeto(96, val)
     i2c.writeto(addr, b"\x00")
 
 pin = Pin(2, Pin.OUT)

@@ -9,7 +9,7 @@ from common import *
 
 def i2c_read(i2c, addr, sub_byte):
     i2c.writeto(addr, sub_byte)
-    b = i2c.readfrom(addr, 1)
+    b = i2c.readfrom(32, 1)
     i2c.writeto(addr, b"\x00")
     return b
 
@@ -28,7 +28,39 @@ def tcp_connect(ip, port, socket_timeout = 5):
         sock.close()
     return None
 
-# FIXME: change this
+
+# Cricket scoreboard looks like this (I'm told):
+#
+#  # # #
+#      #
+#    # #
+#  # # #
+#
+# Where each # is a digit - want to replace leading zeroes with a null digit
+# so they are not lit up as zero
+
+# Helper function - mutates in place slice of list ba in place transforming
+# leading zeroes
+def map_while(ba, i, j, zero, replaced_with):
+    for i in range(i, j):
+        if ba[i] != zero:
+            return
+        ba[i] = replaced_with
+
+# Should be called AFTER mapping through code_to_digit
+def suppress_leading_zeroes(vals, *number_lengths):
+    leading_zero = 0x7e
+    replaced_with = 0x00
+
+    n = 0
+    for j in number_lengths:
+        map_while(vals, n, n+j, leading_zero, replaced_with)
+        n += j
+    # Possibly contentious - I prefer returning by value and this I believe
+    # is tiny overhead
+    return vals
+
+
 code_to_digit = {
         0xff: 0x7e,
         0xfe: 0x30,
@@ -71,13 +103,12 @@ try:
     while True:
         vals = bytearray()
         for mux, chan in mux_channels:
-            # FIXME: add leading zero stuff + how to read wrong values
-            # switch to dict get
             val = int.from_bytes(i2c_read(i2c, mux, chan), sys.byteorder)
             vals.append(code_to_digit[val])
         assert len(vals) == MESSAGE_LEN
+        vals = bytes(suppress_leading_zeroes(vals, 3, 1, 2, 3))
         print("Sending " + str(len(vals)) + " bytes: " + str(vals))
-        sock.write(bytes(vals))
+        sock.write(vals)
         time.sleep(1)
 finally:
     print("Cleaning up")
