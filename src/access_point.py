@@ -10,6 +10,7 @@ def access_point_init():
     # Must be active while configuring
     # tuple IP address, subnet mask, gateway and DNS server
     # DNS doesn't matter as no net but cannot set as 0.0.0.0
+    nic.active(True)
     nic.ifconfig((GATEWAY_IP, "255.255.255.0", GATEWAY_IP, "8.8.8.8"))
     nic.config(essid = SSID, channel = 1, authmode = 4,
             password = WIFI_PASS)

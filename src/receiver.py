@@ -16,26 +16,33 @@ def init_listen_socket(port):
     return sock
 
 def i2c_write(i2c, addr, sub_byte, val):
+    print("  i2c.writeto(addr = " + str(addr) + ", sub_byte = " + str(sub_byte) + ")")
     i2c.writeto(addr, sub_byte)
-    b = i2c.writeto(96, val)
+    print("  i2c.writeto(96, val = " + str(val) +  ")")
+    i2c.writeto(96, val)
+    print("  i2c.writeto(addr = " + str(addr) + ", b\"\x00\")")
     i2c.writeto(addr, b"\x00")
 
 pin = Pin(2, Pin.OUT)
 pin.value(1) # Active low, turn off
-station = station_init(RECEIVER_IP)
+#station = station_init(RECEIVER_IP)
 
-while not connect_to_network(station, SSID, WIFI_PASS, pin):
+station = None
+while True:
+    station, connected = connect_to_network(RECEIVER_IP, GATEWAY_IP, station, SSID, WIFI_PASS)
+    if connected:
+        break
     time.sleep(5)
     flash_n_times(pin, 5)
 print("Connected to network " + str(SSID) + ": " + str(station.ifconfig()))
 
 i2c = I2C(scl = Pin(5), sda = Pin(4), freq = 100000)
 # FIXME: what are the actual channels
-mux_channels = [(m, c) for m in [116, 117, 118] for c in [b"4", b"5", b"6"]]
+mux_channels = [(m, c) for m in [117, 118, 119] for c in [b"\x04", b"\x05", b"\x06"]]
 
+listen_sock = init_listen_socket(RECEIVER_PORT)
+listen_sock.settimeout(40)
 try:
-    listen_sock = init_listen_socket(RECEIVER_PORT)
-    listen_sock.settimeout(40)
 
     while True:
         print("Waiting for connections on " + str(listen_sock))
@@ -45,19 +52,25 @@ try:
 
         try:
             # msg of type bytes
+            print("Reading in data from socket...")
             msg = sock.read(MESSAGE_LEN)
             print("Received " + str(msg))
 
             print("Setting digits")
             for (b, (mux, chan)) in zip(bytearray(msg), mux_channels):
-                i2c_write(i2c, mux, chan, bytes([b]))
+                print("In iter: ", b, mux, chan)
+                i2c_write(i2c, mux, chan, bytes([0x44, b]))
+                print("done i2c_write")
+            print("Digits setting done")
 
-            time.sleep(1)
-        except OSError as e:
-            print("Socket read error: " + str(e))
+            #time.sleep(1)
+        except Exception as e:
+            raise
         finally:
             if sock is not None:
                 sock.close()
+except Exception as e:
+    raise
 finally:
     if listen_sock is not None:
         listen_sock.close()

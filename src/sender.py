@@ -8,9 +8,12 @@ from machine import Pin, I2C
 from common import *
 
 def i2c_read(i2c, addr, sub_byte):
+    print("In i2c read")
+    print(i2c, addr, sub_byte)
     i2c.writeto(addr, sub_byte)
     b = i2c.readfrom(32, 1)
     i2c.writeto(addr, b"\x00")
+    print("Done i2c read")
     return b
 
 # Raises OSError on timeout of connecting socket
@@ -19,6 +22,7 @@ def tcp_connect(ip, port, socket_timeout = 5):
     receiver_addr = socket.getaddrinfo(ip, port)[0][-1]
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(socket_timeout)
+    #sock.connect(receiver_addr)
     try:
         sock.connect(receiver_addr)
         return sock
@@ -77,9 +81,12 @@ code_to_digit = {
 
 pin = Pin(2, Pin.OUT)
 pin.value(1) # Active low, turn off
-station = station_init(SENDER_IP)
 
-while not connect_to_network(station, SSID, WIFI_PASS, pin):
+station = None
+while True:
+    station, connected = connect_to_network(SENDER_IP, GATEWAY_IP, station, SSID, WIFI_PASS)
+    if connected:
+        break
     time.sleep(5)
     flash_n_times(pin, 5)
 print("Connected to network " + str(SSID) + ": " + str(station.ifconfig()))
@@ -98,17 +105,25 @@ else:
 
 try:
     i2c = I2C(scl = Pin(5), sda = Pin(4), freq = 100000)
-    mux_channels = [(m, c) for m in [113, 114, 115] for c in [b"4", b"5", b"6"]]
+    mux_channels = [(m, c) for m in [113, 114, 115] for c in [b"\x04", b"\x05", b"\x06"]]
 
+    print("Init while true loop")
     while True:
         vals = bytearray()
+        print("For mux chans")
         for mux, chan in mux_channels:
+            print("mux chan: ", mux, chan)
             val = int.from_bytes(i2c_read(i2c, mux, chan), sys.byteorder)
             vals.append(code_to_digit[val])
         assert len(vals) == MESSAGE_LEN
         vals = bytes(suppress_leading_zeroes(vals, 3, 1, 2, 3))
         print("Sending " + str(len(vals)) + " bytes: " + str(vals))
-        sock.write(vals)
+        try:
+            print("Writing data to socket:", vals)
+            sock.write(vals)
+            print("Written")
+        except Exception as e:
+            print("Socket write got error:" + str(e))
         time.sleep(1)
 finally:
     print("Cleaning up")
