@@ -1,37 +1,47 @@
+import array
 import machine
-import time
 import socket
 import sys
+import time
 
 from machine import Pin, I2C
 
 from common import *
 
 def i2c_read(i2c, addr, sub_byte):
-    print("In i2c read")
-    print(i2c, addr, sub_byte)
-    i2c.writeto(addr, sub_byte)
-    b = i2c.readfrom(32, 1)
-    i2c.writeto(addr, b"\x00")
-    print("Done i2c read")
-    return b
+    try:
+        i2c.writeto(addr, sub_byte)
+        b = i2c.readfrom(32, 1)
+        i2c.writeto(addr, b"\x00")
+        return b
+    except Exception as e:
+        print("Exception during i2c_read with addr", addr, ", sub_byte", sub_byte)
+        raise
 
-# Raises OSError on timeout of connecting socket
-# Connect to receiver and send data
-def tcp_connect(ip, port, socket_timeout = 5):
+# Setup tcp connection. Returns None if failed else returns socket
+def tcp_connect(ip, port, socket_timeout):
     receiver_addr = socket.getaddrinfo(ip, port)[0][-1]
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(socket_timeout)
-    #sock.connect(receiver_addr)
+    t1 = time.ticks_ms()
     try:
         sock.connect(receiver_addr)
-        return sock
+        return sock, None
     except OSError as e:
-        print("Socket failed to connect to " + str(receiver_addr) + ": " +
-                str(e))
+        print("Socket failed to connect to", receiver_addr, "-", e)
         sock.close()
-    return None
+        while time.ticks_diff(time.ticks_ms(), t1) < 5000:
+            time.sleep(1)
+        return None, e
 
+# Tries to setup tcp connection, throws if fails over tries times
+def try_tcp_connect(ip, port, *, retries = 4, socket_timeout = 5):
+    print("Making tcp socket connection to", ip, "-", port)
+    for _ in range(retries + 1):
+        sock, e = tcp_connect(RECEIVER_IP, RECEIVER_PORT, socket_timeout)
+        if sock is not None:
+            return sock
+    raise e
 
 # Cricket scoreboard looks like this (I'm told):
 #
@@ -82,55 +92,53 @@ code_to_digit = {
 pin = Pin(2, Pin.OUT)
 pin.value(1) # Active low, turn off
 
-station = None
-while True:
-    station, connected = connect_to_network(SENDER_IP, GATEWAY_IP, station, SSID, WIFI_PASS)
-    if connected:
-        break
-    time.sleep(5)
-    flash_n_times(pin, 5)
-print("Connected to network " + str(SSID) + ": " + str(station.ifconfig()))
-
-sock = None
-for _ in range(4):
-    sock = tcp_connect(RECEIVER_IP, RECEIVER_PORT)
-    if sock is not None:
-        print("Socket connected")
-        break
-else:
-    # Have tried 4 times - no luck - reboot?
-    flash_n_times(pin, 9)
-    print("Failed to connect socket - restarting")
-    machine.reset()
-
 try:
-    i2c = I2C(scl = Pin(5), sda = Pin(4), freq = 100000)
-    mux_channels = [(m, c) for m in [113, 114, 115] for c in [b"\x04", b"\x05", b"\x06"]]
 
-    print("Init while true loop")
+    # Necessary for cleanup
+    station = None
+    sock = None
+
+    print("Initialising i2c")
+    i2c = I2C(scl = Pin(5), sda = Pin(4), freq = 100000)
+    mux_channels = [(m, c)
+            for m in array.array("B", [113, 114, 115])
+            for c in [b"\x04", b"\x05", b"\x06"]]
+
+    print("Connecting to network", SSID)
+    station = station_init(SENDER_IP)
+    while not station.isconnected():
+        connect_to_network(station, SSID, WIFI_PASS)
+        if not station.isconnected():
+            time.sleep(5)
+            flash_n_times(pin, 5)
+
+    # This will throw if it fails, must cleanup socket object
+    sock = try_tcp_connect(RECEIVER_IP, RECEIVER_PORT)
+
+    print("Moving into sending loop")
     while True:
         vals = bytearray()
-        print("For mux chans")
+        print("Reading status over i2c")
         for mux, chan in mux_channels:
-            print("mux chan: ", mux, chan)
             val = int.from_bytes(i2c_read(i2c, mux, chan), sys.byteorder)
             vals.append(code_to_digit[val])
         assert len(vals) == MESSAGE_LEN
         vals = bytes(suppress_leading_zeroes(vals, 3, 1, 2, 3))
-        print("Sending " + str(len(vals)) + " bytes: " + str(vals))
-        try:
-            print("Writing data to socket:", vals)
-            sock.write(vals)
-            print("Written")
-        except Exception as e:
-            print("Socket write got error:" + str(e))
+        print("Sending", len(vals), "bytes:", list(vals))
+        sock.write(vals)
         time.sleep(1)
+
+except Exception as e:
+    sys.print_exception(e)
 finally:
     print("Cleaning up")
-    if sock is not None:
-        sock.close()
-    if station is not None and station.isconnected():
-        station.disconnect()
+
+    shutdown_socket(sock)
+    del sock
+    shutdown_station(station)
+    del station
+    gc.collect()
+
     print("Restarting")
     flash_n_times(pin, 15)
     machine.reset()

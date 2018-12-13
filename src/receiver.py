@@ -1,3 +1,4 @@
+import array
 import machine
 import time
 import socket
@@ -8,6 +9,7 @@ from machine import Pin, I2C
 from common import *
 
 def init_listen_socket(port):
+    print("Initialising tcp listening socket on port", port)
     addr = socket.getaddrinfo("0.0.0.0", port)[0][-1]
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -16,67 +18,78 @@ def init_listen_socket(port):
     return sock
 
 def i2c_write(i2c, addr, sub_byte, val):
-    print("  i2c.writeto(addr = " + str(addr) + ", sub_byte = " + str(sub_byte) + ")")
-    i2c.writeto(addr, sub_byte)
-    print("  i2c.writeto(96, val = " + str(val) +  ")")
-    i2c.writeto(96, val)
-    print("  i2c.writeto(addr = " + str(addr) + ", b\"\x00\")")
-    i2c.writeto(addr, b"\x00")
+    try:
+        i2c.writeto(addr, sub_byte)
+        i2c.writeto(96, val)
+        i2c.writeto(addr, b"\x00")
+    except Exception as e:
+        print("Exception during i2c_write with addr", addr, ", sub_byte",
+                sub_byte, "val", val)
+        raise
 
 pin = Pin(2, Pin.OUT)
 pin.value(1) # Active low, turn off
-#station = station_init(RECEIVER_IP)
 
-station = None
-while True:
-    station, connected = connect_to_network(RECEIVER_IP, GATEWAY_IP, station, SSID, WIFI_PASS)
-    if connected:
-        break
-    time.sleep(5)
-    flash_n_times(pin, 5)
-print("Connected to network " + str(SSID) + ": " + str(station.ifconfig()))
-
-i2c = I2C(scl = Pin(5), sda = Pin(4), freq = 100000)
-# FIXME: what are the actual channels
-mux_channels = [(m, c) for m in [117, 118, 119] for c in [b"\x04", b"\x05", b"\x06"]]
-
-listen_sock = init_listen_socket(RECEIVER_PORT)
-listen_sock.settimeout(40)
 try:
+    # Necessary for cleanup
+    station = None
+    listen_sock = None
+    sock = None
+
+    print("Initialising i2c")
+    i2c = I2C(scl = Pin(5), sda = Pin(4), freq = 100000)
+    mux_channels = [(m, c)
+            for m in array.array("B", [117, 118, 119])
+            for c in [b"\x04", b"\x05", b"\x06"]]
+
+    print("Connecting to network", SSID)
+    station = station_init(RECEIVER_IP)
+    while not station.isconnected():
+        connect_to_network(station, SSID, WIFI_PASS)
+        if not station.isconnected():
+            time.sleep(5)
+            flash_n_times(pin, 5)
+
+    listen_sock = init_listen_socket(RECEIVER_PORT)
+    listen_sock.settimeout(40)
 
     while True:
-        print("Waiting for connections on " + str(listen_sock))
+        print("Waiting for connections on", listen_sock)
         sock, addr = listen_sock.accept()
-        sock.settimeout(10)
-        print("Received connection from " + str(addr))
+        sock.settimeout(8)
+        print("Received connection from", addr)
 
-        try:
+        while True:
             # msg of type bytes
-            print("Reading in data from socket...")
+            print("Blocking read of size", MESSAGE_LEN, "bytes on socket...")
             msg = sock.read(MESSAGE_LEN)
-            print("Received " + str(msg))
+            print("Read data of size", len(msg), "bytes:", list(msg))
+            if len(msg) == 0:
+                print("Connection closed by remote host - read 0 bytes - closing this socket")
+                shutdown_socket(sock)
+                break
+            elif len(msg) != MESSAGE_LEN:
+                # Could happen for short read?
+                print("Discarding received data of wrong length")
+            else:
+                print("Setting i2c outputs according to received data")
+                for (b, (mux, chan)) in zip(bytearray(msg), mux_channels):
+                    i2c_write(i2c, mux, chan, bytes([0x44, b]))
 
-            print("Setting digits")
-            for (b, (mux, chan)) in zip(bytearray(msg), mux_channels):
-                print("In iter: ", b, mux, chan)
-                i2c_write(i2c, mux, chan, bytes([0x44, b]))
-                print("done i2c_write")
-            print("Digits setting done")
-
-            #time.sleep(1)
-        except Exception as e:
-            raise
-        finally:
-            if sock is not None:
-                sock.close()
 except Exception as e:
-    raise
+    sys.print_exception(e)
 finally:
-    if listen_sock is not None:
-        listen_sock.close()
+    print("Cleaning up")
+
+    shutdown_socket(sock)
+    del sock
+    shutdown_socket(listen_sock)
+    del listen_sock
+    shutdown_station(station)
+    del station
+    gc.collect()
+
     print("Restarting")
     flash_n_times(pin, 15)
     machine.reset()
 
-# Listen for connection from sender
-# Receive data
