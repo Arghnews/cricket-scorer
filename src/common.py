@@ -63,12 +63,12 @@ def connect_to_network(station, ssid, password, timeout = 11):
         print("Station status " + wlan_status_str(station))
     print("Failed to connect", timeout, "times")
 
-def flash_n_times(pin, n):
+def flash_n_times(pin, n, *, gap_ms = 480):
     # Assumes active low
     for _ in range(n):
         pin.value(False)
         time.sleep_ms(20)
         pin.value(True)
-        time.sleep_ms(580)
+        time.sleep_ms(gap_ms)
     pin.value(True)
 

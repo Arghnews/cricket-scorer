@@ -9,6 +9,7 @@ from machine import Pin, I2C
 from common import *
 
 def i2c_read(i2c, addr, sub_byte):
+    return bytes([0xff])
     try:
         i2c.writeto(addr, sub_byte)
         b = i2c.readfrom(32, 1)
@@ -126,6 +127,8 @@ try:
         vals = bytes(suppress_leading_zeroes(vals, 3, 1, 2, 3))
         print("Sending", len(vals), "bytes:", list(vals))
         sock.write(vals)
+        reply = sock.read(1)
+        print("Reply", reply)
         time.sleep(1)
 
 except Exception as e:
@@ -140,6 +143,6 @@ finally:
     gc.collect()
 
     print("Restarting")
-    flash_n_times(pin, 15)
+    flash_n_times(pin, 4, gap_ms = 230)
     machine.reset()
 

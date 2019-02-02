@@ -18,6 +18,7 @@ def init_listen_socket(port):
     return sock
 
 def i2c_write(i2c, addr, sub_byte, val):
+    return
     try:
         i2c.writeto(addr, sub_byte)
         i2c.writeto(96, val)
@@ -56,7 +57,7 @@ try:
     while True:
         print("Waiting for connections on", listen_sock)
         sock, addr = listen_sock.accept()
-        sock.settimeout(8)
+        sock.settimeout(7)
         print("Received connection from", addr)
 
         while True:
@@ -75,6 +76,7 @@ try:
                 print("Setting i2c outputs according to received data")
                 for (b, (mux, chan)) in zip(bytearray(msg), mux_channels):
                     i2c_write(i2c, mux, chan, bytes([0x44, b]))
+                sock.write(b"\x00")
 
 except Exception as e:
     sys.print_exception(e)
@@ -90,6 +92,6 @@ finally:
     gc.collect()
 
     print("Restarting")
-    flash_n_times(pin, 15)
+    flash_n_times(pin, 4, gap_ms = 230)
     machine.reset()
 
