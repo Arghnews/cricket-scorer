@@ -10,6 +10,29 @@ else:
 
 # TODO: raise more specific exceptions than Exception
 
+# Would have made class picklable but micropython doesn't support this so just
+# using to_bytes instead
+
+class SequenceNumber(object):
+    "Class wrapping 4 byte unsigned sequence numbers"
+
+    __slots__ = ("_sequence_number")
+
+    def __init__(self, sequence_number = None):
+        pass
+
+    def increment(self):
+        if self._sequence_number == 4294967294:
+            self._sequence_number = 0
+        else:
+            self._sequence_number = self._sequence_number + 1
+
+    def __le__(self, other):
+        return self._sequence_number <= other._sequence_number
+
+    def __str__(self):
+        pass
+
 class Packet:
     # Cannot use sys.getsizeof as not implemented in micropython
     # _size # int - size of 4
@@ -20,7 +43,7 @@ class Packet:
     def __init__(self, *, sequence_number = None, new_connection = None,
             payload):
         if sequence_number is None and new_connection is None or \
-                not sequence_number and new_connection is not None:
+                sequence_number is not None and new_connection is True:
             raise Exception("Packet must have exactly one of either a sequence "
                     "number or the new_connection flag set ")
         if payload is None or type(payload) is not bytes:
@@ -45,6 +68,7 @@ class Packet:
                     self._sequence_number < 2147483647
         else:
             # Unsure here - pushing protocol into packet data
+            # Wrap around for unsigned 4 byte.
             self._sequence_number = sequence_number + 1
 
         self._payload = payload
@@ -64,12 +88,44 @@ class Packet:
         # return str(self.__class__) + ": " + str(self.__dict__)
 
 def main(argv):
-    print("Hello world!")
-    p = Packet(new_connection = True, payload = bytes([1,2,3]))
-    print(p)
-    print(p.to_bytes())
+    # print("Hello world!")
+    # p = Packet(new_connection = True, payload = bytes([1,2,3]))
+    # print(p)
+    # print(p.to_bytes())
 
-    p1 = Packet(new_connection = False, sequence_number = 1, payload = bytes([1,2,3]))
+    b = bytes([1, 2, 3])
+
+    p1 = Packet()
+
+    p1 = Packet(payload = b)
+
+    p2 = Packet(new_connection = False, payload = b)
+    p2 = Packet(new_connection = True, payload = b)
+    p2 = Packet(new_connection = None, payload = b)
+
+    p2 = Packet(sequence_number = None, payload = b)
+    p2 = Packet(sequence_number = 0, payload = b)
+    p2 = Packet(sequence_number = 1, payload = b)
+    p2 = Packet(sequence_number = 4294967294, payload = b)
+
+    p2 = Packet(new_connection = None, sequence_number = None, payload = b)
+    p2 = Packet(new_connection = False, sequence_number = None, payload = b)
+    p2 = Packet(new_connection = True, sequence_number = None, payload = b)
+
+    p2 = Packet(new_connection = None, sequence_number = 0, payload = b)
+    p2 = Packet(new_connection = False, sequence_number = 0, payload = b)
+    p2 = Packet(new_connection = True, sequence_number = 0, payload = b)
+
+
+    p2 = Packet(new_connection = None, sequence_number = 1, payload = b)
+    p2 = Packet(new_connection = False, sequence_number = 1, payload = b)
+    p2 = Packet(new_connection = True, sequence_number = 1, payload = b)
+
+    p2 = Packet(new_connection = None, sequence_number = 4294967294, payload = b)
+    p2 = Packet(new_connection = False, sequence_number = 4294967294, payload = b)
+    p2 = Packet(new_connection = True, sequence_number = 4294967294, payload = b)
+
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
