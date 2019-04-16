@@ -20,6 +20,9 @@ if sys.platform == "esp8266":
 else:
     import random
 
+# Subclassing object was here for a reason (not old style classes but another
+# actually relevant reason in this Python3 project but I didn't write it down
+# and have now forgotten..
 class SequenceNumber(object):
     "Class wrapping 4 byte unsigned sequence numbers"
 
@@ -44,7 +47,10 @@ class SequenceNumber(object):
         else:
             self._sequence_number = self._sequence_number + 1
 
+    # Could overload __int__(self) -> int ?
+
     def __add__(self, other):
+        # return NotImplemented
         print("__add__", self, "to", other, type(other))
         return 10
 
@@ -63,6 +69,21 @@ class SequenceNumber(object):
             return a < b and b <= c
         else: # Wrapping case
             return a < b or b <= c
+
+    def __le__(self, other):
+        return self.n == other.n or self < other
+
+    def __gt__(self, other):
+        return other < self
+
+    def __ge__(self, other):
+        return other <= self
+
+    def __eq__(self, other):
+        return self.n == other.n
+
+    def __ne__(self, other):
+        return not self == other
 
             # c = (a + 4) % 8
             # if a < c:
@@ -151,6 +172,32 @@ def main(argv):
     s += s2
     print("s:", s, ", s2:", s2)
     print("")
+
+    s, s2 = SequenceNumber(6), SequenceNumber(7)
+    print("s:", s, ", s2:", s2)
+    print("s += 5")
+    s += 5
+    print("s:", s, ", s2:", s2)
+    print("")
+
+    print(s < s2)
+    print(s == s)
+    print(s != s)
+    print(s != s2)
+    print(s > s2)
+    print(s2 >= s)
+    print(s2 >= s2)
+
+    print(B is A)
+    print(issubclass(B, A))
+
+    print(isinstance(A(), A))
+    print(isinstance(B(), A))
+    print(isinstance(B(), B))
+    print(isinstance(A(), B))
+
+class A: pass
+class B(A): pass
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
