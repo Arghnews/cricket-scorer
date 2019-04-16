@@ -2,6 +2,19 @@
 
 import sys
 
+# TODO: https://docs.python.org/3/reference/datamodel.html#object.__bytes__
+# Has a to bytes method that's not pickle built in, use it
+# Add the add method operator overload - consider __add__, __radd__, __iadd__
+# __add__ -> x + y calls x.__add__(y)
+# __radd__ -> x + y calls y.__add__(x) if x.__add__(y) returns NotImplemented
+# __iadd__ -> These methods should attempt to do the operation in-place
+# (modifying self) and return the result (which could be, but does not have to
+# be, self). If a specific method is not defined, the augmented assignment falls
+# back to the normal methods. For instance, if x is an instance of a class with
+# an __iadd__() method, x += y is equivalent to x = x.__iadd__(y) . Otherwise,
+# x.__add__(y) and y.__radd__(x) are considered, as with the evaluation of x + y
+# - ie. in-place version returning self
+
 if sys.platform == "esp8266":
     import uos
 else:
@@ -31,21 +44,26 @@ class SequenceNumber(object):
         else:
             self._sequence_number = self._sequence_number + 1
 
+    def __add__(self, other):
+        print("__add__", self, "to", other, type(other))
+        return 10
+
+    def __radd__(self, other):
+        print("__radd__", self, "to", other, type(other))
+        return 11
+
+    def __iadd__(self, other):
+        print("__iadd__", self, "to", other, type(other))
+        return self
+
     def __lt__(self, other):
-        a, b, n = self.n, other.n, self.bits
-        # print(b, (a + 2 ** (n - 1)) % n)
-        c = 2 ** (n - 1)
-        C = 2 ** n
-        # print("{} <= (({} + {}) % {})".format(b, a, c, (2 ** n)))
-        if a == b:
-            return False
-        # elif a < b:
-        else:
-            c = (a + 4) % 8
-            if a < c:
-                return b > a and b <= c
-            else:
-                return b > a or b < c
+        a, b = self.n, other.n
+        c = (a + (2 ** (self.bits - 1))) % (2 ** self.bits)
+        if a < c: # Non wrapping case
+            return a < b and b <= c
+        else: # Wrapping case
+            return a < b or b <= c
+
             # c = (a + 4) % 8
             # if a < c:
             #     return b > a and b <= c
@@ -86,11 +104,53 @@ class SequenceNumber(object):
         return "{:,}".format(self.n)
 
 def main(argv):
-    s = SequenceNumber(5)
+    s = SequenceNumber(6)
+    s2 = SequenceNumber(7)
     for i in range(8):
         s2 = SequenceNumber(i)
         # s < s2
-        print(s, "<", s2, s < s2)
+        # print(s, "<", s2, s < s2)
+
+    print("s + 5")
+    s + 5
+    print("")
+
+    print("5 + s")
+    5 + s
+    print("")
+
+    print("s += 5")
+    s += 5
+    print("")
+
+
+    s, s2 = SequenceNumber(6), SequenceNumber(7)
+    print("s:", s, ", s2:", s2)
+    print("s = s + 5")
+    s = s + 5
+    print("s:", s, ", s2:", s2)
+    print("")
+
+    s, s2 = SequenceNumber(6), SequenceNumber(7)
+    print("s:", s, ", s2:", s2)
+    print("s = 5 + s")
+    s = 5 + s
+    print("s:", s, ", s2:", s2)
+    print("")
+
+    s, s2 = SequenceNumber(6), SequenceNumber(7)
+    print("s:", s, ", s2:", s2)
+    print("s = s + s2")
+    s = s + s2
+    print("s:", s, ", s2:", s2)
+    print("")
+
+    s, s2 = SequenceNumber(6), SequenceNumber(7)
+    print("s:", s, ", s2:", s2)
+    print("s += s2")
+    s += s2
+    print("s:", s, ", s2:", s2)
+    print("")
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
