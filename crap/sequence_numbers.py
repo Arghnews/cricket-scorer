@@ -43,16 +43,23 @@ class SequenceNumber(object):
 
     __slots__ = ("n", "bits")
 
-    def __init__(self, n = None, bits = 3):
+    def __init__(self, *, n = None, bits):
         assert bits >= 2
-        # while not n:
-        if n is None:
+        if type(n) is bytes:
+            n = int.from_bytes(n, sys.byteorder)
+        elif type(n) is int:
+            n = n % (2 ** bits)
+        elif n is None:
             if sys.platform == "esp8266":
                 # TODO: add comment about sys.byteorder being unused
                 # n = int.from_bytes(uos.urandom(size), sys.byteorder)
                 raise Exception("Not implemented yet")
             else:
                 n = random.randint(0, 2 ** bits - 1)
+        else:
+            # TODO: change when less tired to just fail
+            raise Exception("Not implemented yet")
+            pass
         self.n = n
         self.bits = bits
 
@@ -79,6 +86,10 @@ class SequenceNumber(object):
         # print("__radd__", self, "to", other, type(other))
         # return 11
         return self.__add__(other)
+
+    def __sub__(self, other):
+        print("sub other is:", other)
+        return self.__add__(-other)
 
     def __lt__(self, other):
         if type(self) is not type(other):
@@ -168,8 +179,6 @@ def int_to_bytes(n, bits):
         bits -= min(8, bits)
     return bytes(b)
 
-
-
 def main(argv):
 
     # For a positive integer n, outputs bits number of bits as bytes (LE)
@@ -179,17 +188,17 @@ def main(argv):
     bb = int_to_bytes(n, 64)
     acc = 0
     i = 0
-    for i, b in enumerate(bb):
-        acc |= b << i * 8
-    print(hex(acc))
-    return
+    print(bb)
+    print(hex(int.from_bytes(bb, sys.byteorder)))
+    assert int.from_bytes(int_to_bytes(n, 64), sys.byteorder) == n
+    # for i, b in enumerate(bb):
+    #     acc |= b << i * 8
+    # print(hex(acc))
 
-    return
-
-    s = SequenceNumber(6)
-    s2 = SequenceNumber(7)
+    s = SequenceNumber(n = 6, bits = 3)
+    s2 = SequenceNumber(n = 7, bits = 3)
     for i in range(8):
-        s2 = SequenceNumber(i)
+        s2 = SequenceNumber(n = i, bits = 3)
         # s < s2
         # print(s, "<", s2, s < s2)
 
@@ -205,36 +214,35 @@ def main(argv):
     s += 5
     print("")
 
-
-    s, s2 = SequenceNumber(6), SequenceNumber(7)
+    s, s2 = SequenceNumber(n = 6, bits = 3), SequenceNumber(n = 7, bits = 3)
     print("s:", s, ", s2:", s2)
     print("s = s + 5")
     s = s + 5
     print("s:", s, ", s2:", s2)
     print("")
 
-    s, s2 = SequenceNumber(6), SequenceNumber(7)
+    s, s2 = SequenceNumber(n = 6, bits = 3), SequenceNumber(n = 7, bits = 3)
     print("s:", s, ", s2:", s2)
     print("s = 5 + s")
     s = 5 + s
     print("s:", s, ", s2:", s2)
     print("")
 
-    # s, s2 = SequenceNumber(6), SequenceNumber(7)
+    # s, s2 = SequenceNumber(n = 6, bits = 3), SequenceNumber(n = 7, bits = 3)
     # print("s:", s, ", s2:", s2)
     # print("s = s + s2")
     # s = s + s2
     # print("s:", s, ", s2:", s2)
     # print("")
 
-    # s, s2 = SequenceNumber(6), SequenceNumber(7)
+    # s, s2 = SequenceNumber(n = 6, bits = 3), SequenceNumber(n = 7, bits = 3)
     # print("s:", s, ", s2:", s2)
     # print("s += s2")
     # s += s2
     # print("s:", s, ", s2:", s2)
     # print("")
 
-    s, s2 = SequenceNumber(6), SequenceNumber(7)
+    s, s2 = SequenceNumber(n = 6, bits = 3), SequenceNumber(n = 7, bits = 3)
     print("s:", s, ", s2:", s2)
     print("s += 5")
     s += 5
@@ -267,6 +275,14 @@ def main(argv):
     print(5 == s)
     print(5 != s)
     print(int(s))
+
+    print("Sub")
+    print(s)
+    print("s - 2")
+    print(s - 2)
+    print("2 - s")
+    # print(2 - s)
+    # Not implementing this one as seems confusing and not useful
 
     print(dir(s))
     print("")
