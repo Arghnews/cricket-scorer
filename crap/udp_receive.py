@@ -6,15 +6,11 @@ import select
 import socket
 import time
 
-class ConnectionClosedException(Exception):
-    def __init__(self, message):
-        super().__init__(message)
-
-class SendFailedException(Exception):
-    def __init__(self, message):
-        super().__init__(message)
-
 class SimpleUDP:
+    """
+    NOTE: This class reports short reads and write as failed receives/sends
+    respectively since we expect a low error rate and this is simple.
+    """
 
     def __enter__(self):
         return self
@@ -28,7 +24,9 @@ class SimpleUDP:
             *, backup_timeout = 30):
         server_addr = socket.getaddrinfo("0.0.0.0", server_port)[0][-1]
         client_addr = socket.getaddrinfo(client_ip, client_port)[0][-1]
+        # UDP
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # https://stackoverflow.com/a/14388707
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.setblocking(False)
         self.sock.bind(server_addr)
@@ -36,24 +34,28 @@ class SimpleUDP:
         self.poller = select.poll()
         self.poller.register(self.sock)
 
-    def recv(self, numb_bytes, timeout_ms):
+    # Have chosen to return None to try and help remove ambiguity in case a zero
+    # length payload is sent/received and code goes: if connc.recv(n, t):...
+    # Returns None on failure, bytes object on success
+    def recv(self, num_bytes, timeout_ms):
         if not self._check_socket(select.POLLIN, timeout_ms):
             return None
         # If here we got an event that is a POLLIN ie. there is data to be read
-        data = self.sock.recv(numb_bytes)
+        data = self.sock.recv(num_bytes)
         print("Data read", data)
-
-        # Connection closed
-        if len(data) == 0:
-            raise RuntimeError("Connection closed by remote - read of 0 bytes")
+        if len(data) != num_bytes:
+            return None
         return data
 
-    # Return value subject to change - returns number of bytes sent
+    # Returns None on failure, bytes object on success
     def send(self, data):
         if not self._check_socket(select.POLLOUT, 0):
             return None
         # If here we got an event that is a POLLIN ie. there is data to be read
-        return self.sock.send(data)
+        sent = self.sock.send(data)
+        if len(data) != sent:
+            return None
+        return True
 
     def _check_socket(self, poll_type, timeout_ms):
         self.poller.modify(self.sock, poll_type)
@@ -109,14 +111,13 @@ def main(argv):
 
     if receiver:
         with SimpleUDP(2520, "127.0.0.1", 2521) as udp_sock:
-            input("Waiting for input")
+            # input("Waiting for input")
             while True:
-                print(udp_sock.recv(2, 5000))
+                print(udp_sock.recv(4, 5000))
     else:
         with SimpleUDP(2521, "127.0.0.1", 2520) as udp_sock:
             while True:
-                print("Sending", udp_sock.sock.send(bytes([1,2,3])))
-                time.sleep(2)
+                print("Sending", udp_sock.sock.send(bytes([1,2])))
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
