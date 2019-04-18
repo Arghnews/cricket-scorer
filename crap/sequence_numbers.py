@@ -2,6 +2,8 @@
 
 import sys
 
+from utility import int_to_bytes
+
 # TODO: https://docs.python.org/3/reference/datamodel.html#object.__bytes__
 # Has a to bytes method that's not pickle built in, use it
 # Add the add method operator overload - consider __add__, __radd__, __iadd__
@@ -51,15 +53,17 @@ class SequenceNumber(object):
             n = n % (2 ** bits)
         elif n is None:
             if sys.platform == "esp8266":
-                # TODO: add comment about sys.byteorder being unused
+                # FIXME: add comment about sys.byteorder being unused
                 # n = int.from_bytes(uos.urandom(size), sys.byteorder)
+                # implement
                 raise Exception("Not implemented yet")
             else:
                 n = random.randint(0, 2 ** bits - 1)
         else:
-            # TODO: change when less tired to just fail
+            # FIXME: change when less tired to just fail
             raise Exception("Not implemented yet")
             pass
+        # TODO: just gen sequence numbers as 0 if none?
         self.n = n
         self.bits = bits
 
@@ -90,6 +94,12 @@ class SequenceNumber(object):
     def __sub__(self, other):
         print("sub other is:", other)
         return self.__add__(-other)
+
+    def __isub__(self, other):
+        print("Isub")
+        return self.__iadd__(-other)
+
+    # rsub is confusing
 
     def __lt__(self, other):
         if type(self) is not type(other):
@@ -164,20 +174,6 @@ class SequenceNumber(object):
         # print(0, "<", o, "<=", (2 ** self.bits - 1))
         # print(neg, pos)
         # return neg or pos
-
-def int_to_bytes(n, bits):
-    # For a positive integer n, outputs bits number of bits as bytes (LE)
-    # n = (1 << 16) + (1 << 15) + 63
-    # n = 0x0123456789ABCDEF
-    # 0x0123456789ABCDEF -> 64 bit LE - EF CD AB 89 67 45 23 01
-    # bits = 64
-    assert n >= 0 and bits >= 0
-    b = bytearray()
-    while bits > 0:
-        b.append(sum(n & 2 ** i for i in range(min(8, bits))))
-        n >>= 8
-        bits -= min(8, bits)
-    return bytes(b)
 
 def main(argv):
 
@@ -303,6 +299,14 @@ def main(argv):
         # print(int(ss))
         assert i % 8 == int(ss)
         ss += 1
+
+    s4 = SequenceNumber(n = 0, bits = 3)
+    print("s4:", s4)
+    s4 += 8
+    s4 -= 10
+    print(s4)
+    print(bytes(s4))
+    print(bytes(SequenceNumber(n = 69, bits = 9)))
 
 class A: pass
 class B(A): pass
