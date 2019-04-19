@@ -132,7 +132,7 @@ class SequenceNumber(object):
         return "{:,}".format(self.n)
 
     def __bytes__(self):
-        return int_to_bytes(self.n, self.bits)
+        return int_to_bytes(self.n, self.bits // 8 + int(self.bits % 8 != 0))
 
     # Python spec says this is default generated when __eq__ is defined
     # TODO: check this on esp8266 micropython port
@@ -181,12 +181,12 @@ def main(argv):
     n = (1 << 16) + (1 << 15) + 63
     n = 0x0123456789ABCDEF
     # 0x0123456789ABCDEF -> 64 bit LE - EF CD AB 89 67 45 23 01
-    bb = int_to_bytes(n, 64)
+    bb = int_to_bytes(n, 8)
     acc = 0
     i = 0
     print(bb)
     print(hex(int.from_bytes(bb, sys.byteorder)))
-    assert int.from_bytes(int_to_bytes(n, 64), sys.byteorder) == n
+    assert int.from_bytes(int_to_bytes(n, 8), sys.byteorder) == n
     # for i, b in enumerate(bb):
     #     acc |= b << i * 8
     # print(hex(acc))
