@@ -20,8 +20,7 @@ class SimpleUDP:
         self.poller.unregister(self.sock)
         self.sock.close()
 
-    def __init__(self, server_port, client_ip, client_port,
-            *, backup_timeout = 30):
+    def __init__(self, server_port, client_ip, client_port):
         server_addr = socket.getaddrinfo("0.0.0.0", server_port)[0][-1]
         client_addr = socket.getaddrinfo(client_ip, client_port)[0][-1]
         # UDP
@@ -37,7 +36,7 @@ class SimpleUDP:
     # Have chosen to return None to try and help remove ambiguity in case a zero
     # length payload is sent/received and code goes: if connc.recv(n, t):...
     # Returns None on failure, bytes object on success
-    def recv(self, num_bytes, timeout_ms):
+    def recv(self, num_bytes, *, timeout_ms = 0):
         if not self._check_socket(select.POLLIN, timeout_ms):
             return None
         # If here we got an event that is a POLLIN ie. there is data to be read
@@ -66,9 +65,11 @@ class SimpleUDP:
         print("Events received", events)
         for fd, event in events:
             assert fd == self.sock.fileno()
-            if event != select.POLLIN:
-                raise OSError("Error - socket expected to be able to recv (" +
-                        str(self.sock) + "):" + str(POLL_EVENTS[event]))
+            if event != poll_type:
+                raise OSError("Error - socket expected to be able to {} ({}): {}"
+                        .format(
+                        "recv" if poll_type == select.POLLIN else "send",
+                        self.sock, POLL_EVENTS[event]))
         return True
 
 def gen():
@@ -84,7 +85,7 @@ def gen():
     #         ))
     return dict(poll_codes)
 
-POLL_EVENT = {
+POLL_EVENTS = {
         1: "POLLIN",
         2: "POLLPRI",
         4: "POLLOUT",
@@ -113,11 +114,12 @@ def main(argv):
         with SimpleUDP(2520, "127.0.0.1", 2521) as udp_sock:
             # input("Waiting for input")
             while True:
-                print(udp_sock.recv(4, 5000))
+                print(udp_sock.recv(10, 5000))
     else:
         with SimpleUDP(2521, "127.0.0.1", 2520) as udp_sock:
             while True:
-                print("Sending", udp_sock.sock.send(bytes([1,2])))
+                print("Sending", udp_sock.sock.send(bytes([1,2,3,5,6,7,8])))
+                time.sleep(2)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

@@ -8,11 +8,16 @@ else:
     import random
 
 def gen_random(num_bytes):
+    # TODO: fix this to neatly have an option to gen a range of numbers, for now
+    # quick nonzero fix
     assert num_bytes > 0
     if sys.platform == "esp8266":
-        return int.from_bytes(uos.urandom(num_bytes), sys.byteorder)
+        n = 0
+        while n == 0:
+            n = int.from_bytes(uos.urandom(num_bytes), sys.byteorder)
+        return n
     else:
-        return random.randint(0, 2 ** (num_bytes * 8) - 1)
+        return random.randint(1, 2 ** (num_bytes * 8) - 1)
 
 def int_to_bytes(i, n):
     # i - integer to convert

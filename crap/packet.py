@@ -5,31 +5,25 @@ import sys
 from utility import gen_random, int_to_bytes
 from sequence_numbers import SequenceNumber
 
-# header_data = connection.recv(Packet.header_size())
-# header = Header(header_data)
-# data = connection.recv(header.payload_size())
-
-# Bit messy but unsure how to decouple header and payload neatly
-
 class Packet:
 
     CONNECTION_ID_SIZE = 4
     SEQUENCE_NUMBER_SIZE = 4
-    MAXIMUM_PAYLOAD_SIZE = 127
+    ACK_SIZE = 1
+    MAXIMUM_PAYLOAD_SIZE = 9
 
     @classmethod
-    def header_size(cls):
-        return 1 + cls.CONNECTION_ID_SIZE + cls.SEQUENCE_NUMBER_SIZE
+    def packet_size(cls):
+        return sum(v for k, v in cls.__dict__.items() if k.isupper() and k.endswith("_SIZE"))
 
     def __str__(self):
         return ("connection_id: {:,} , ack bit: {}, sequence_number: {}, "
                 "payload: {}").format(self.connection_id, self.ack,
                         self.sequence_number, self.payload)
 
-    def __init__(self, *, connection_id = None, ack = False,
-            payload = None, sequence_number):
+    def __init__(self, *, ack = False, connection_id, sequence_number, payload):
         cls = type(self)
-        if connection_id is None:
+        while not connection_id:
             connection_id = gen_random(cls.CONNECTION_ID_SIZE)
 
         assert type(connection_id) is int
@@ -41,33 +35,26 @@ class Packet:
         self.connection_id = connection_id
         self.sequence_number = sequence_number
         self.ack = ack
-        if payload is not None:
-            cls.check_payload(payload)
+        cls.check_payload(payload)
         self.payload = payload
 
     @classmethod
     def check_payload(cls, payload):
         assert type(payload) is bytes
-        assert len(payload) <= cls.MAXIMUM_PAYLOAD_SIZE
-
-    def set_payload(self, payload):
-        type(self).check_payload(payload)
-        self.payload = payload
-        return self
+        assert len(payload) == cls.MAXIMUM_PAYLOAD_SIZE
 
     def __bytes__(self):
-        # Must have a valid payload to convert to bytes
-        type(self).check_payload(self.payload)
-
         cls = type(self)
+        # Must have a valid payload to convert to bytes
+        cls.check_payload(self.payload)
+
         ba = bytearray()
-        ba.append(len(self.payload) | (self.ack << 7)) # 1 byte
+        # ba.append(len(self.payload) | (self.ack << 7)) # 1 byte
         ba += int_to_bytes(self.connection_id, cls.CONNECTION_ID_SIZE)
         ba += bytes(self.sequence_number)
-
-        # print(len(ba))
-        # print(cls.header_size())
-        assert len(ba) == cls.header_size()
+        ba.append(self.ack)
+        # ba += bytes(self.ack)
+        assert len(ba) == cls.packet_size() - cls.MAXIMUM_PAYLOAD_SIZE
 
         ba += self.payload
         return bytes(ba)
@@ -77,12 +64,13 @@ class Packet:
         """Parses bytes as a Packet (header)
         Returns a header (with null payload) and the size of the payload to
         read next"""
-        assert len(bytes_) == cls.header_size()
+        if bytes_ is None:
+            return None
+        assert len(bytes_) == cls.packet_size()
 
-        # First byte
-        ack = bool(bytes_[0] & (1 << 7))
-        payload_size = bytes_[0] & ~(1 << 7)
-        offset = 1
+        # Python ints immutable, can't take by ref... How to create a neat
+        # function to increment them inside it?
+        offset = 0
 
         # If keeping these lines this should be neatened somehow, manual offset
         # is far too error-prone
@@ -94,15 +82,18 @@ class Packet:
         sequence_number = SequenceNumber(
                 n = bytes_[offset:offset + cls.SEQUENCE_NUMBER_SIZE],
                 bits = cls.SEQUENCE_NUMBER_SIZE * 8)
-
-        # print(offset, offset + cls.SEQUENCE_NUMBER_SIZE)
-        # print(sequence_number)
         offset += cls.SEQUENCE_NUMBER_SIZE
 
-        packet = cls(connection_id = connection_id, ack = ack,
-                sequence_number = sequence_number)
+        ack = bool(bytes_[offset])
+        offset += cls.ACK_SIZE
+        # print(offset, offset + cls.SEQUENCE_NUMBER_SIZE)
+        # print(sequence_number)
 
-        return packet, payload_size
+        payload = bytes_[offset:offset + cls.MAXIMUM_PAYLOAD_SIZE]
+        offset += cls.MAXIMUM_PAYLOAD_SIZE
+
+        return cls(connection_id = connection_id, ack = ack,
+                sequence_number = sequence_number, payload = payload)
 
     def __eq__(self, other):
         if type(other) is not type(other):
@@ -115,12 +106,14 @@ def same(self, other, *attrs):
 def main(argv):
 
     sn = SequenceNumber(n = 5, bits = 32)
+    p1 = Packet(connection_id = (1 << 31) + (1 << 24) + (1 << 16) + (1 << 8) + (1 << 4),
+            sequence_number = sn, ack = False, payload = bytes(range(9)))
+    print(Packet.packet_size())
+
     sn2 = SequenceNumber(n = 5, bits = 32)
 
-    p1 = Packet(connection_id = (1 << 31) + (1 << 24) + (1 << 16) + (1 << 8) + (1 << 4),
-            sequence_number = sn, ack = False)
     p2 = Packet(connection_id = (1 << 31) + (1 << 24) + (1 << 16) + (1 << 8) + (1 << 4),
-            sequence_number = sn2, ack = False)
+            sequence_number = sn2, ack = False, payload = bytes(range(9)))
 
 #     # No vars in micropython
 #     print(vars(p1))
@@ -134,26 +127,23 @@ def main(argv):
 
     print("Hello world!")
 
-    payload = bytes(range(7))
+    payload = bytes(range(9))
 
     # print(bytes(sn))
     # return
 
     p = Packet(connection_id = (1 << 31) + (1 << 24) + (1 << 16) + (1 << 8) + (1 << 4),
-            sequence_number = sn, ack = False)
+            sequence_number = sn, ack = False, payload = payload)
             # payload = bytes([1,2,3]))
-    p.set_payload(payload)
     print(p)
     data = bytes(p)
     print(data)
 
-    packet, payload_size = Packet.from_bytes(data[:Packet.header_size()])
+    packet = Packet.from_bytes(data)
 
-    print("Packet:", packet)
-    print("payload_size is", payload_size)
-    assert payload_size == len(payload)
-    assert p != packet
-    assert p == packet.set_payload(payload)
+    print("packet:", packet)
+    print("p:", p)
+    assert packet == p
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
