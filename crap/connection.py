@@ -135,6 +135,7 @@ def receiver():
             else:
                 print("Read None from socket")
 
+                print("THE FUCKING CONNECTION ID:", connection_id)
                 reply = Packet(ack = False,
                         connection_id = connection_id,
                         sequence_number = sequence_number,
@@ -162,14 +163,16 @@ def sender():
                 print("Read packet from socket:", packet)
                 if packet.ack:
                     print("Got packet with ack, setting ack for reply")
+                    sequence_number = SequenceNumber(n = 0, bits = 32)
+                    remote_sequence_number = SequenceNumber(n = 0, bits = 32)
                     reply = Packet(ack = True,
-                            connection_id = connection_id,
+                            connection_id = gen_random(4),
                             sequence_number = sequence_number,
                             payload = payload)
+                    print("Generating new connection_id:", connection_id)
                     print("Sending ack connection change reply:", reply)
                     sock.send(bytes(reply))
-                    print("Incrementing sequence number")
-                    sequence_number += 1
+                    print("Setting both sequence numbers to zero")
                 else:
                     will_reply = False
                     if packet.sequence_number > remote_sequence_number:

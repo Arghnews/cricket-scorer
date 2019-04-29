@@ -23,8 +23,10 @@ class Packet:
 
     def __init__(self, *, ack = False, connection_id, sequence_number, payload):
         cls = type(self)
-        while not connection_id:
-            connection_id = gen_random(cls.CONNECTION_ID_SIZE)
+        # Why would you put this in you moron - a packet should be basically a
+        # struct with serialisation methods, that's it
+        # while not connection_id:
+        #     connection_id = gen_random(cls.CONNECTION_ID_SIZE)
 
         assert type(connection_id) is int
         assert connection_id < 2 ** (cls.CONNECTION_ID_SIZE * 8)
