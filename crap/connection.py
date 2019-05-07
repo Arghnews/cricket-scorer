@@ -60,6 +60,104 @@ from sequence_numbers import SequenceNumber
 from packet import Packet
 from utility import gen_random
 
+# FIXME: SEE THIS - Resetting the id is reasonable to do. Allows sequence number
+# resets for a connection and both sides renegotiate. Better than stuff with
+# sequence numbers that is going to be tough. This way "rogue packets" will
+# cause the current stable connection to reset as such but that's fine, we don't
+# have much state in the payload and the connection will continue.
+
+# FIXME FIXME: think the fix is master slave type and the sender upon seeing a
+# new id for the receiver generates a new one and sends that out.
+# If/when the receiver receives this it sets its id to that and replies.
+# The sender/master then changes its receiver_id to that one.
+# This works nicely as now the receiver must temporally get and respond with new
+# data that cannot be old as ids are random.
+# For an old id packet that appears, this process occurs but crucially the
+# sender does not change their receiver_id immediately. The "confirmation" of a
+# connection change only happens when they get a reply with the new receiver_id.
+# The only extra state needed is the sender must remember the receiver_id it
+# just sent out to know whether to switch to it or not. And perhaps have that on
+# a small timeout.
+
+def sender2(sock, my_id = None):
+    if my_id is None:
+        my_id = gen_random(4)
+    # Consider replacing sender with tx for transmitter and receiver with rx for
+    # receiver
+    rx_id = Packet.UNKNOWN_ID
+    new_rx_id = Packet.UNKNOWN_ID
+    gen_id_time = 0
+    while True:
+        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 1 * 1000))
+        print("Received:", packet)
+        if packet is None:
+            time.sleep(1)
+
+        elif packet.sender == rx_id and packet.receiver == my_id:
+            # Existing connection, packet destined for us
+            print("Got good packet")
+            # if valid_packet(packet):
+            #     pass_to_higher_layer_reply_if_score_updated()
+        elif packet.sender == new_rx_id and packet.receiver == my_id:
+            # Switch connection as received what we just sent
+            rx_id = new_rx_id
+            new_rx_id = Packet.UNKNOWN_ID
+            print("New receiver:", rx_id)
+            p = Packet(sender = my_id, receiver = rx_id)
+            print("Sending confirm changed:", p)
+            sock.send(bytes(p))
+        else:
+            # TODO: implement for esp
+            # int(time.monotonic())
+            if not gen_id_time or gen_id_time + 10 < int(time.monotonic()):
+                print("Genning new rx_id")
+                new_rx_id = gen_random(4)
+                gen_id_time = int(time.monotonic())
+            p = Packet(
+                sender = my_id,
+                receiver = packet.sender,
+                id_change = new_rx_id)
+            print("Responding with id_change packet:", p)
+            sock.send(bytes(p))
+        print("------------------------------------------------")
+        time.sleep(4)
+
+def receiver2(sock, my_id = None):
+    if my_id is None:
+        my_id = gen_random(4)
+    rx_id = Packet.UNKNOWN_ID
+    while True:
+        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 5 * 1000))
+        print("Received:", packet)
+
+        if packet is None: # Timed out or got garbled message
+            p = Packet(sender = my_id, receiver = rx_id)
+            print("Sending lookout message:", p)
+            sock.send(bytes(p))
+
+        elif packet.sender == rx_id and packet.receiver == my_id \
+                and packet.id_change == Packet.UNKNOWN_ID:
+            print("Got good packet")
+            # if valid_packet(packet): # Check sequence number here
+            #     pass_to_higher_layer_update_score(packet.data)
+            #     # TODO: with what? can add complexity and reliability here
+            #     reply()
+        elif packet.receiver == my_id \
+                and packet.id_change != Packet.UNKNOWN_ID:
+            print("Changing id", my_id, "->", packet.id_change)
+            rx_id = packet.sender
+            my_id = packet.id_change
+            p = Packet(sender = my_id, receiver = rx_id)
+            print("Sending back details:", p)
+            sock.send(bytes(p))
+        else:
+            # Stamp sender == my_id and leave receiver
+            p = Packet(sender = my_id, receiver = Packet.UNKNOWN_ID)
+            print("Got unknown sending back my details:", p)
+            sock.send(bytes(p))
+        print("------------------------------------------------")
+        time.sleep(3)
+
 def receiver():
     with SimpleUDP(2520, "127.0.0.1", 2521) as sock:
         connection_id = 0
@@ -207,10 +305,12 @@ def sender():
 def main(argv):
     if len(argv) > 1:
         print("Receiver")
-        receiver()
+        with SimpleUDP(2520, "127.0.0.1", 2521) as sock:
+            receiver2(sock)
     else:
         print("Sender")
-        sender()
+        with SimpleUDP(2521, "127.0.0.1", 2520) as sock:
+            sender2(sock)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

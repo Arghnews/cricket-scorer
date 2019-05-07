@@ -41,7 +41,7 @@ class SimpleUDP:
             return None
         # If here we got an event that is a POLLIN ie. there is data to be read
         data = self.sock.recv(num_bytes)
-        print("Data read", data)
+        # print("Data read", data)
         if len(data) != num_bytes:
             return None
         return data
@@ -62,7 +62,7 @@ class SimpleUDP:
         # We know that all fds will be this socket so can ignore them
         if not events:
             return False
-        print("Events received", events)
+        # print("Events received", events)
         for fd, event in events:
             assert fd == self.sock.fileno()
             if event != poll_type:
