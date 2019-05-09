@@ -12,6 +12,10 @@ class Packet:
     SENDER_SIZE = 4
     RECEIVER_SIZE = 4
     ID_CHANGE_SIZE = 4
+    SEQUENCE_NUMBER_SIZE = 4
+    # This tight coupling sucks
+    PAYLOAD_SIZE = 9
+
     # MAXIMUM_PAYLOAD_SIZE = 9
 
     @classmethod
@@ -24,9 +28,12 @@ class Packet:
     #                     self.sequence_number, self.payload)
 
     def __str__(self):
-        return "{{{:,} {:,} {:,}}}".format(self.sender, self.receiver, self.id_change)
+        return "{{{:,} {:,} {:,} {} {}}}".format(self.sender, self.receiver,
+                self.id_change, self.sequence_number, self.payload)
 
-    def __init__(self, *, sender, receiver, id_change = 0):
+    def __init__(self, *, sender, receiver, id_change = 0,
+            sequence_number = SequenceNumber(n = 0, bytes_ = SEQUENCE_NUMBER_SIZE),
+            payload = bytes(9)):
         cls = type(self)
         # Why would you put this in you moron - a packet should be basically a
         # struct with serialisation methods, that's it
@@ -47,6 +54,8 @@ class Packet:
         self.sender = sender
         self.receiver = receiver
         self.id_change = id_change
+        self.sequence_number = sequence_number
+        self.payload = payload
 
     # @classmethod
     # def check_payload(cls, payload):
@@ -64,6 +73,14 @@ class Packet:
         ba += int_to_bytes(self.sender, 4)
         ba += int_to_bytes(self.receiver, 4)
         ba += int_to_bytes(self.id_change, 4)
+        # assert type(self.sequence_number) is int
+        ba += int_to_bytes(int(self.sequence_number), cls.SEQUENCE_NUMBER_SIZE)
+        ba += self.payload
+        # print("Going to bytes")
+        # print(self.sequence_number)
+        # print(self.sequence_number.bits)
+        # print(bytes(self.sequence_number))
+        # ba += bytes(self.sequence_number)
         # ba.append(self.ack)
         # ba += bytes(self.ack)
         # assert len(ba) == cls.packet_size() - cls.MAXIMUM_PAYLOAD_SIZE
@@ -74,12 +91,16 @@ class Packet:
 
     @classmethod
     def from_bytes(cls, bytes_):
+        # print("Received in from_bytes:", bytes_)
         if bytes_ is None:
             return None
         return Packet(
                 sender = int.from_bytes(bytes_[0:4], sys.byteorder),
                 receiver = int.from_bytes(bytes_[4:8], sys.byteorder),
                 id_change = int.from_bytes(bytes_[8:12], sys.byteorder),
+                sequence_number = SequenceNumber(bytes_[12:16],
+                    bytes_ = cls.SEQUENCE_NUMBER_SIZE),
+                payload = bytes_[16:25],
                 )
 
         # """Parses bytes as a Packet (header)

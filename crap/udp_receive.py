@@ -33,16 +33,20 @@ class SimpleUDP:
         self.poller = select.poll()
         self.poller.register(self.sock)
 
+    # TODO: remove/change/think about these quick and dirty try blocks
+
     # Have chosen to return None to try and help remove ambiguity in case a zero
     # length payload is sent/received and code goes: if connc.recv(n, t):...
     # Returns None on failure, bytes object on success
     def recv(self, num_bytes, *, timeout_ms = 0):
         if not self._check_socket(select.POLLIN, timeout_ms):
+            print("Nothing to read from socket")
             return None
         # If here we got an event that is a POLLIN ie. there is data to be read
         data = self.sock.recv(num_bytes)
         # print("Data read", data)
         if len(data) != num_bytes:
+            print("Read", len(data), "bytes but was expecting", num_bytes)
             return None
         return data
 
@@ -69,21 +73,8 @@ class SimpleUDP:
                 raise OSError("Error - socket expected to be able to {} ({}): {}"
                         .format(
                         "recv" if poll_type == select.POLLIN else "send",
-                        self.sock, POLL_EVENTS[event]))
+                        self.sock, all_events(event)))
         return True
-
-def gen():
-    import select
-    poll_codes = sorted(
-            [
-                (a, getattr(select, a))
-                for a in dir(select) if a.startswith("POLL")
-            ],
-            key = operator.itemgetter(1))
-    # print("\n".join(
-    #         str(val) + ": \"" + name + "\"," for name, val in poll_codes
-    #         ))
-    return dict(poll_codes)
 
 POLL_EVENTS = {
         1: "POLLIN",
@@ -100,7 +91,34 @@ POLL_EVENTS = {
         8192: "POLLRDHUP",
 }
 
+def all_events(mask):
+    val = 2 ** 13
+    events = []
+    while mask > 0:
+        if val <= mask:
+            mask -= val
+            if val in POLL_EVENTS:
+                events.append(POLL_EVENTS[val])
+        val //= 2
+    return ", ".join(events)
+    # POLL_EVENTS
+
+def gen():
+    import select
+    poll_codes = sorted(
+            [
+                (a, getattr(select, a))
+                for a in dir(select) if a.startswith("POLL")
+            ],
+            key = operator.itemgetter(1))
+    # print("\n".join(
+    #         str(val) + ": \"" + name + "\"," for name, val in poll_codes
+    #         ))
+    return dict(poll_codes)
+
 def main(argv):
+    print(all_events(9))
+    return
 
     receiver = False
     if len(argv) > 1:

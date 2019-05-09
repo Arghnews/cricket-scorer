@@ -79,65 +79,112 @@ from utility import gen_random
 # just sent out to know whether to switch to it or not. And perhaps have that on
 # a small timeout.
 
+# Bit of a mess.
+# Hand of to higher layers.
+# Is it an issue of multiple connections on same id if they ask within
+# timeframe? Suspect no as this is a single connection protocol and the receiver
+# would not respond with both.
+# UDP send failing on localhost is kind of annoying.
+# What to do about dirty try/except blocks in udp class - mainly put there for
+# quick testing anyway.
+
 def sender2(sock, my_id = None):
     if my_id is None:
         my_id = gen_random(4)
     # Consider replacing sender with tx for transmitter and receiver with rx for
     # receiver
+    old_rx_id = Packet.UNKNOWN_ID
     rx_id = Packet.UNKNOWN_ID
     new_rx_id = Packet.UNKNOWN_ID
     gen_id_time = 0
+    next_remote_seq = SequenceNumber(bytes_ = 4)
+    next_local_seq = SequenceNumber(bytes_ = 4)
     while True:
-        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 1 * 1000))
+        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 0 * 1000))
         print("Received:", packet)
         if packet is None:
-            time.sleep(1)
+            # time.sleep(1)
+            pass
 
         elif packet.sender == rx_id and packet.receiver == my_id:
             # Existing connection, packet destined for us
-            print("Got good packet")
+            if packet.sequence_number >= next_remote_seq:
+                next_remote_seq = packet.sequence_number + 1
+                print("Got good packet")
+            else:
+                print("Got old/duplicate packet")
+
             # if valid_packet(packet):
             #     pass_to_higher_layer_reply_if_score_updated()
         elif packet.sender == new_rx_id and packet.receiver == my_id:
             # Switch connection as received what we just sent
+            old_rx_id = rx_id
             rx_id = new_rx_id
             new_rx_id = Packet.UNKNOWN_ID
+            next_remote_seq = SequenceNumber(bytes_ = 4)
+            next_local_seq = SequenceNumber(bytes_ = 4)
             print("New receiver:", rx_id)
-            p = Packet(sender = my_id, receiver = rx_id)
+            p = Packet(sender = my_id, receiver = rx_id,
+                    sequence_number = int(next_local_seq.post_increment()))
             print("Sending confirm changed:", p)
             sock.send(bytes(p))
+        elif packet.sender == old_rx_id and packet.receiver == Packet.UNKNOWN_ID \
+                and packet.id_change == Packet.UNKNOWN_ID:
+            print("Received echo packet from old id - ignoring")
+            # This is to prevent continual id generations when the receiver
+            # changes id and then (latency allowing) an "old" packet gets
+            # through just with it's id on. This will then trigger another id
+            # generation event and this will continue until we accidentally trip
+            # over the latency window.
+            # This solution relies on the probability that the new id != old id
+            # otherwise we'll forever ignore the old id.
+            # Unsure if this is needed, haven't seen it yet. Ugh.
         else:
             # TODO: implement for esp
             # int(time.monotonic())
-            if not gen_id_time or gen_id_time + 10 < int(time.monotonic()):
-                print("Genning new rx_id")
-                new_rx_id = gen_random(4)
+            if new_rx_id == Packet.UNKNOWN_ID or gen_id_time + 10 < int(time.monotonic()):
+                # asdkjfasdjf jasdkjfasd ## See here <-
+                # Some weird python scoping bullshit means new_rx_id is not
+                # getting reassigined so at the print statement below it is
+                # still 0
+                # TODO: fix all gen_randoms with this
+                new_rx_id = gen_random(4, excluding = (Packet.UNKNOWN_ID,
+                    old_rx_id, rx_id, new_rx_id))
+                print("Genning new rx_id", new_rx_id)
                 gen_id_time = int(time.monotonic())
             p = Packet(
                 sender = my_id,
                 receiver = packet.sender,
                 id_change = new_rx_id)
             print("Responding with id_change packet:", p)
+            print("new_rx_id =", new_rx_id)
             sock.send(bytes(p))
         print("------------------------------------------------")
-        time.sleep(4)
+        time.sleep(1)
 
 def receiver2(sock, my_id = None):
     if my_id is None:
         my_id = gen_random(4)
     rx_id = Packet.UNKNOWN_ID
+    next_remote_seq = SequenceNumber(bytes_ = 4)
+    next_local_seq = SequenceNumber(bytes_ = 4)
     while True:
-        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 5 * 1000))
+        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 0 * 1000))
         print("Received:", packet)
 
         if packet is None: # Timed out or got garbled message
-            p = Packet(sender = my_id, receiver = rx_id)
+            p = Packet(sender = my_id, receiver = rx_id,
+                    sequence_number = int(next_local_seq.post_increment()))
             print("Sending lookout message:", p)
             sock.send(bytes(p))
 
         elif packet.sender == rx_id and packet.receiver == my_id \
                 and packet.id_change == Packet.UNKNOWN_ID:
-            print("Got good packet")
+            if packet.sequence_number >= next_remote_seq:
+                next_remote_seq = packet.sequence_number + 1
+                print("Got good packet")
+            else:
+                print("Got old/duplicate packet")
             # if valid_packet(packet): # Check sequence number here
             #     pass_to_higher_layer_update_score(packet.data)
             #     # TODO: with what? can add complexity and reliability here
@@ -147,16 +194,19 @@ def receiver2(sock, my_id = None):
             print("Changing id", my_id, "->", packet.id_change)
             rx_id = packet.sender
             my_id = packet.id_change
+            next_remote_seq = SequenceNumber(bytes_ = 4)
+            next_local_seq = SequenceNumber(bytes_ = 4)
             p = Packet(sender = my_id, receiver = rx_id)
             print("Sending back details:", p)
             sock.send(bytes(p))
         else:
             # Stamp sender == my_id and leave receiver
             p = Packet(sender = my_id, receiver = Packet.UNKNOWN_ID)
+            # p = Packet(sender = my_id, receiver = packet.sender)
             print("Got unknown sending back my details:", p)
             sock.send(bytes(p))
         print("------------------------------------------------")
-        time.sleep(3)
+        time.sleep(1)
 
 def receiver():
     with SimpleUDP(2520, "127.0.0.1", 2521) as sock:
@@ -306,10 +356,15 @@ def main(argv):
     if len(argv) > 1:
         print("Receiver")
         with SimpleUDP(2520, "127.0.0.1", 2521) as sock:
+            # while True:
+            #     print(sock.recv(9, timeout_ms = 1 * 1000))
             receiver2(sock)
     else:
         print("Sender")
         with SimpleUDP(2521, "127.0.0.1", 2520) as sock:
+            # while True:
+            #     sock.send(bytes(range(9)))
+                # time.sleep(1)
             sender2(sock)
 
 if __name__ == "__main__":

@@ -32,6 +32,9 @@ from utility import int_to_bytes
 # possibly unintuitive given the wrong context whereas of course this works
 # SequenceNumber(n = 1, bits = 3) == SequenceNumber(n = 9, bits = 3) # True
 
+# TODO: make some kind of factory or wrapper or something so don't have to put
+# the god damn bits size in every construction of an object of these
+
 if sys.platform == "esp8266":
     import uos
 else:
@@ -45,27 +48,36 @@ class SequenceNumber(object):
 
     __slots__ = ("n", "bits")
 
-    def __init__(self, *, n = None, bits):
+    def __init__(self, n = None, *, bits = None, bytes_ = None, random = False):
+        if random is True:
+            assert n is None
+        assert (bits is None) ^ (bytes_ is None) # Exactly one is provided
+        if bytes_ is not None:
+            bits = bytes_ * 8
         assert bits >= 2
-        if type(n) is bytes:
+
+        if random:
+            n = gen_random(bits * 8)
+        elif type(n) is bytes:
             n = int.from_bytes(n, sys.byteorder)
         elif type(n) is int:
-            n = n % (2 ** bits)
-        elif n is None:
-            if sys.platform == "esp8266":
-                # FIXME: add comment about sys.byteorder being unused
-                # n = int.from_bytes(uos.urandom(size), sys.byteorder)
-                # implement
-                raise Exception("Not implemented yet")
-            else:
-                n = random.randint(0, 2 ** bits - 1)
-        else:
-            # FIXME: change when less tired to just fail
-            raise Exception("Not implemented yet")
             pass
+        elif n is None:
+            n = 0
+        else:
+            assert False, "Unreachable"
+
         # TODO: just gen sequence numbers as 0 if none?
-        self.n = n
+        self.n = n % (2 ** bits)
         self.bits = bits
+
+    # Unsure about this
+    # Advantage is that at the call site it's a one statement-er rather than two
+    # statements/lines which means you can't forget to increment after using
+    def post_increment(self):
+        cp = self.__copy__()
+        self += 1
+        return cp
 
     def __copy__(self):
         return SequenceNumber(n = self.n, bits = self.bits)
@@ -101,8 +113,21 @@ class SequenceNumber(object):
 
     # rsub is confusing
 
+    def _type_check_(self, other):
+        if type(self) is not type(other) or self.bits != other.bits:
+            return NotImplemented
+        return True
+
+    # TODO: finish these operators in terms of each other
+
+    # Comparing SequenceNumbers that don't share the same number of bits could
+    # be VERY confusing. Especially given the modulo arithmetic already...
+    # I'm sure it's possible to come up with painful examples by jigging about
+    # with bits etc.
+    # Let's force the number of bits to be the same else return NotImplemented
+    # Otherwise the user can always convert to int and do as they please
     def __lt__(self, other):
-        if type(self) is not type(other):
+        if type(self) is not type(other) or self.bits != other.bits:
             return NotImplemented
         a, b = self.n, other.n
         c = (a + (2 ** (self.bits - 1))) % (2 ** self.bits)
@@ -112,16 +137,23 @@ class SequenceNumber(object):
             return a < b or b <= c
 
     def __le__(self, other):
-        return self.n == other.n or self < other
+        return self.__eq__(other) or self.__lt__(other)
 
     def __gt__(self, other):
-        return other < self
+        if type(self) is not type(other) or self.bits != other.bits:
+            return NotImplemented
+        return not self.__le__(other)
 
     def __ge__(self, other):
-        return other <= self
+        return not self.__lt__(other)
 
+    # We are strict as what should things like
+    # SequenceNumber(n = 6, bits = 3) == SequenceNumber(n = 14, bits = 4) # ?
+    # "Clearly" 6 != 14 but n = 6 == 14 % (2 ** 3) == 6
+    # Can always convert to ints
+    # To me currently it seems this behaviour is unobvious at best
     def __eq__(self, other):
-        if type(self) is not type(other):
+        if type(self) is not type(other) or self.bits != other.bits:
             return NotImplemented
         return self.n == other.n
 
@@ -307,6 +339,61 @@ def main(argv):
     print(s4)
     print(bytes(s4))
     print(bytes(SequenceNumber(n = 69, bits = 9)))
+
+    aa = SequenceNumber(n = 3, bits = 32)
+    # Careful with side effect in assert
+    print("aa:", aa)
+    bb = aa.post_increment()
+    print("aa:", aa)
+    print("bb:", bb)
+    # Take care not to compare SequenceNumber to int in an assert, it just fails
+    assert aa == SequenceNumber(n = 4, bits = 32)
+    assert bb == SequenceNumber(n = 3, bits = 32)
+
+    print(max(aa, bb))
+
+    z = SequenceNumber(n = 60, bits = 42)
+    assert z != 0
+    assert z != 60
+    assert z == SequenceNumber(n = 60, bits = 42)
+    # 0 == z
+    # z == 0
+    try:
+        0 > z
+    except TypeError:
+        pass
+    else:
+        assert False
+    try:
+        z > 0
+    except TypeError:
+        pass
+    else:
+        assert False
+    # try:
+    #     z <= 0
+    # except TypeError:
+    #     pass
+    # try:
+    #     z < 0
+    # except TypeError:
+    #     pass
+    # try:
+    #     z > 0
+    # except TypeError:
+    #     pass
+    # else:
+    #     assert False
+    # try:
+    #     0 >= z
+    # except TypeError:
+    #     pass
+
+    assert SequenceNumber(n = 4, bits = 4) > SequenceNumber(n = 3, bits = 4)
+    assert SequenceNumber(n = 20, bits = 4) > SequenceNumber(n = 3, bits = 4)
+    assert SequenceNumber(n = 14, bits = 4) < SequenceNumber(n = 3, bits = 4)
+    assert SequenceNumber(n = 20, bits = 3) != SequenceNumber(n = 3, bits = 4)
+    assert SequenceNumber(n = 0, bits = 4) >= SequenceNumber(n = -1, bits = 4)
 
 class A: pass
 class B(A): pass
