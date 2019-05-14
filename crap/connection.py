@@ -93,7 +93,6 @@ def sender2(sock, my_id = None):
         my_id = gen_random(4)
     # Consider replacing sender with tx for transmitter and receiver with rx for
     # receiver
-    old_rx_id = Packet.UNKNOWN_ID
     rx_id = Packet.UNKNOWN_ID
     new_rx_id = Packet.UNKNOWN_ID
     gen_id_time = 0
@@ -116,21 +115,26 @@ def sender2(sock, my_id = None):
 
             # if valid_packet(packet):
             #     pass_to_higher_layer_reply_if_score_updated()
-        elif packet.sender == new_rx_id and packet.receiver == my_id:
+        # elif packet.sender == rx_id and packet.receiver == Packet.UNKNOWN_ID \
+        #         and packet.id_change == Packet.UNKNOWN_ID:
+        #     print("Received old discovery packet")
+        elif packet.sender == new_rx_id and packet.receiver == my_id \
+                and packet.id_change != Packet.UNKNOWN_ID:
+                # and packet.id_change == old_rx_id:
             # Switch connection as received what we just sent
-            old_rx_id = rx_id
             rx_id = new_rx_id
             new_rx_id = Packet.UNKNOWN_ID
             next_remote_seq = SequenceNumber(bytes_ = 4)
             next_local_seq = SequenceNumber(bytes_ = 4)
-            print("New receiver:", rx_id)
+            print("Switching connection - new receiver:", rx_id)
             p = Packet(sender = my_id, receiver = rx_id,
                     sequence_number = int(next_local_seq.post_increment()))
-            print("Sending confirm changed:", p)
-            sock.send(bytes(p))
-        elif packet.sender == old_rx_id and packet.receiver == Packet.UNKNOWN_ID \
-                and packet.id_change == Packet.UNKNOWN_ID:
-            print("Received echo packet from old id - ignoring")
+            # print("Sending confirm changed:", p)
+            # sock.send(bytes(p))
+            # sock.send(bytes(p))
+        # elif packet.sender == old_rx_id and packet.receiver == Packet.UNKNOWN_ID \
+        #         and packet.id_change == Packet.UNKNOWN_ID:
+        #     print("Received echo packet from old id - ignoring")
             # This is to prevent continual id generations when the receiver
             # changes id and then (latency allowing) an "old" packet gets
             # through just with it's id on. This will then trigger another id
@@ -149,7 +153,7 @@ def sender2(sock, my_id = None):
                 # still 0
                 # TODO: fix all gen_randoms with this
                 new_rx_id = gen_random(4, excluding = (Packet.UNKNOWN_ID,
-                    old_rx_id, rx_id, new_rx_id))
+                    rx_id, new_rx_id))
                 print("Genning new rx_id", new_rx_id)
                 gen_id_time = int(time.monotonic())
             p = Packet(
@@ -160,7 +164,7 @@ def sender2(sock, my_id = None):
             print("new_rx_id =", new_rx_id)
             sock.send(bytes(p))
         print("------------------------------------------------")
-        time.sleep(1)
+        time.sleep(2)
 
 def receiver2(sock, my_id = None):
     if my_id is None:
@@ -192,11 +196,11 @@ def receiver2(sock, my_id = None):
         elif packet.receiver == my_id \
                 and packet.id_change != Packet.UNKNOWN_ID:
             print("Changing id", my_id, "->", packet.id_change)
-            rx_id = packet.sender
+            p = Packet(sender = packet.id_change, receiver = packet.sender, id_change = my_id)
             my_id = packet.id_change
+            rx_id = packet.sender
             next_remote_seq = SequenceNumber(bytes_ = 4)
             next_local_seq = SequenceNumber(bytes_ = 4)
-            p = Packet(sender = my_id, receiver = rx_id)
             print("Sending back details:", p)
             sock.send(bytes(p))
         else:
@@ -206,151 +210,7 @@ def receiver2(sock, my_id = None):
             print("Got unknown sending back my details:", p)
             sock.send(bytes(p))
         print("------------------------------------------------")
-        time.sleep(1)
-
-def receiver():
-    with SimpleUDP(2520, "127.0.0.1", 2521) as sock:
-        connection_id = 0
-        sequence_number = SequenceNumber(n = 0, bits = 32)
-        remote_sequence_number = SequenceNumber(n = 0, bits = 32)
-
-        while True:
-            print("Connection id:", connection_id)
-            packet = Packet.from_bytes(sock.recv(Packet.packet_size(),
-                timeout_ms = 5000))
-            if packet is not None:
-                print("Read packet from socket:", packet)
-                if packet.connection_id != connection_id:
-                    # New connection
-                    print("Received packet with different connection id:",
-                            packet.connection_id, "to current:", connection_id)
-                    if not packet.ack:
-                        reply = Packet(ack = True,
-                            connection_id = connection_id,
-                            # TODO: change seq num here to default
-                                sequence_number = sequence_number,
-                                payload = bytes(9))
-                        print("Sending back connection change "
-                                "(ack bit set) packet:", reply)
-                        # We have found new connection
-                        # Send packet asking for confirm
-                        sock.send(bytes(reply))
-                    else:
-                        print("Switching to new connection id:",
-                                packet.connection_id, "from", connection_id,
-                                "and setting local sequence number to 0")
-                        connection_id = packet.connection_id
-                        remote_sequence_number = packet.sequence_number - 1
-                        sequence_number = SequenceNumber(n = 0, bits = 32)
-
-                        print("Received data:", packet.payload)
-
-                        reply = Packet(ack = False,
-                                connection_id = connection_id,
-                                sequence_number = sequence_number,
-                                payload = packet.payload)
-                        print("Sending back echo:", reply)
-                        sock.send(bytes(reply))
-                        print("Incrementing sequence number")
-                        sequence_number += 1
-
-                else:
-                    # Existing connection
-                    if packet.ack:
-                        print("Received packet with ack set on same connection")
-                    if packet.sequence_number > remote_sequence_number:
-                        # New data, not duplicate or old
-                        remote_sequence_number = packet.sequence_number
-                        print("Received new packet with sequence_number",
-                                packet.sequence_number)
-
-                        print("Received data:", packet.payload)
-
-                        reply = Packet(ack = False,
-                                connection_id = connection_id,
-                                sequence_number = sequence_number,
-                                payload = packet.payload)
-                        print("Sending back echo:", reply)
-                        sock.send(bytes(reply))
-                        print("Incrementing sequence number")
-                        sequence_number += 1
-                    else:
-                        print("Rejecting packet with older sequence " + \
-                                "number ({} < {})".format(packet.sequence_number,
-                                        remote_sequence_number))
-
-                        print(packet.payload)
-            else:
-                print("Read None from socket")
-
-                print("THE FUCKING CONNECTION ID:", connection_id)
-                reply = Packet(ack = False,
-                        connection_id = connection_id,
-                        sequence_number = sequence_number,
-                        payload = bytes(9))
-                print("Sending periodic discovery packet:", reply)
-                sock.send(bytes(reply))
-                print("Incrementing sequence number")
-                sequence_number += 1
-
-            print("")
-
-def sender():
-    with SimpleUDP(2521, "127.0.0.1", 2520) as sock:
-        connection_id = gen_random(4)
-        sequence_number = SequenceNumber(n = 0, bits = 32)
-        remote_sequence_number = SequenceNumber(n = 0, bits = 32)
-        payload = bytes(range(9))
-        while True:
-            print("Connection id:", connection_id)
-            packet = Packet.from_bytes(sock.recv(Packet.packet_size(),
-                timeout_ms = 4000))
-            if packet is None:
-                print("Read None from socket")
-            else:
-                print("Read packet from socket:", packet)
-                if packet.ack:
-                    print("Got packet with ack, setting ack for reply")
-                    sequence_number = SequenceNumber(n = 0, bits = 32)
-                    remote_sequence_number = SequenceNumber(n = 0, bits = 32)
-                    reply = Packet(ack = True,
-                            connection_id = gen_random(4),
-                            sequence_number = sequence_number,
-                            payload = payload)
-                    print("Generating new connection_id:", connection_id)
-                    print("Sending ack connection change reply:", reply)
-                    sock.send(bytes(reply))
-                    print("Setting both sequence numbers to zero")
-                else:
-                    will_reply = False
-                    if packet.sequence_number > remote_sequence_number:
-                        remote_sequence_number = packet.sequence_number
-                        print("Received packet with sequence_number",
-                                packet.sequence_number)
-                        # will_reply = True
-                    if connection_id != packet.connection_id:
-                        print("Received packet with different connection id:",
-                                packet.connection_id, "to current:", connection_id)
-                        will_reply = True
-
-                    if will_reply:
-                        print("Received data:", packet.payload)
-
-                        reply = Packet(ack = False,
-                                connection_id = connection_id,
-                                sequence_number = sequence_number,
-                                payload = payload)
-                        print("Sending back update:", reply)
-                        sock.send(bytes(reply))
-                        print("Incrementing sequence number")
-                        sequence_number += 1
-                    else:
-                        print("Rejecting packet with older sequence " + \
-                                "number ({} < {})".format(packet.sequence_number,
-                                        remote_sequence_number))
-
-                        print(packet.payload)
-            print("")
+        time.sleep(2)
 
 def main(argv):
     if len(argv) > 1:
