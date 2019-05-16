@@ -10,6 +10,9 @@ else:
 def gen_random(num_bytes, excluding = ()):
     # TODO: fix this to neatly have an option to gen a range of numbers, for now
     # quick nonzero fix
+    if type(excluding) is int:
+        excluding = (excluding, )
+    assert type(excluding) in [tuple, list]
     assert num_bytes > 0
     # f = None
     if sys.platform == "esp8266":
@@ -26,7 +29,7 @@ def gen_random(num_bytes, excluding = ()):
 def int_to_bytes(i, n):
     # i - integer to convert
     # n - number of bytes of output (will be zero padded)
-    # Outputs bytes LE (tested on x86 and esp8266 and no issues)
+    # Outputs bytes LE (x86 and esp8266 should be fine)
 
     assert i >= 0 and n >= 0
     b = bytearray()

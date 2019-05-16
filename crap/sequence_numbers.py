@@ -157,8 +157,12 @@ class SequenceNumber(object):
             return NotImplemented
         return self.n == other.n
 
+    # Micropython does not seem to call this as would expect - add additional
+    # explicit function
     def __int__(self):
         return self.n
+    def as_int(self):
+        return self.__int__()
 
     def __str__(self):
         return "{:,}".format(self.n)

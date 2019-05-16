@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env micropython
 
 import sys
 
@@ -13,14 +13,20 @@ class Packet:
     RECEIVER_SIZE = 4
     ID_CHANGE_SIZE = 4
     SEQUENCE_NUMBER_SIZE = 4
-    # This tight coupling sucks
+    # This tight coupling sucks - maybe some kind of factory to fix, lot of work
     PAYLOAD_SIZE = 9
 
     # MAXIMUM_PAYLOAD_SIZE = 9
 
+    # https://stackoverflow.com/a/32720603
+    # Micropython class objects do not seem to have this mappingproxy object
+    # called "__dict__" for accessing class attributes.
+    # Would've used.
+    # return sum(v for k, v in cls.__dict__.items() if k.isupper() and k.endswith("_SIZE"))
     @classmethod
     def packet_size(cls):
-        return sum(v for k, v in cls.__dict__.items() if k.isupper() and k.endswith("_SIZE"))
+        return sum(getattr(cls, x) for x in dir(cls) if x.isupper()
+                and x.endswith("_SIZE") and type(getattr(cls, x)) is int)
 
     # def __str__(self):
     #     return ("connection_id: {:,} , ack bit: {}, sequence_number: {}, "
@@ -55,6 +61,7 @@ class Packet:
         self.sender = sender
         self.receiver = receiver
         self.id_change = id_change
+        assert type(sequence_number) is SequenceNumber
         self.sequence_number = sequence_number
         self.payload = payload
 
@@ -75,7 +82,23 @@ class Packet:
         ba += int_to_bytes(self.receiver, 4)
         ba += int_to_bytes(self.id_change, 4)
         # assert type(self.sequence_number) is int
-        ba += int_to_bytes(int(self.sequence_number), cls.SEQUENCE_NUMBER_SIZE)
+        # TODO: find cleaner longer term solution for this, also probably need
+        # to change all the esp8266 ones to this - this seems like the proper
+        # way to do it
+        # NOTE: the reason the bottom way works nicely is that if
+        # sequence_number is an int, it's mapped to an int. If it's a
+        # SequenceNumber, it's then mapped to an int. That's why this top way is
+        # messier - probably should straighten out class invariants to know what
+        # it is
+        # if sys.implementation.name == "micropython":
+        #     print("I'm a micropython short and stout")
+        #     assert type(self.sequence_number) is int
+        #     ba += int_to_bytes(self.sequence_number,
+        #             cls.SEQUENCE_NUMBER_SIZE)
+        # else:
+        ba += int_to_bytes(self.sequence_number.__int__(),
+                cls.SEQUENCE_NUMBER_SIZE)
+
         ba += self.payload
         # print("Going to bytes")
         # print(self.sequence_number)

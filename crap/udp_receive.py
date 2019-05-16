@@ -38,37 +38,52 @@ class SimpleUDP:
     # Have chosen to return None to try and help remove ambiguity in case a zero
     # length payload is sent/received and code goes: if connc.recv(n, t):...
     # Returns None on failure, bytes object on success
-    def recv(self, num_bytes, *, timeout_ms = 0):
-        if not self._check_socket(select.POLLIN, timeout_ms):
-            print("Nothing to read from socket")
-            return None
-        # If here we got an event that is a POLLIN ie. there is data to be read
-        data = self.sock.recv(num_bytes)
-        # print("Data read", data)
-        if len(data) != num_bytes:
-            print("Read", len(data), "bytes but was expecting", num_bytes)
-            return None
-        return data
+    def recv(self, num_bytes, *, timeout_ms = 50):
+        try:
+            if not self._check_socket(select.POLLIN, timeout_ms):
+                print("Nothing to read from socket")
+                return None
+            # If here we got an event that is a POLLIN ie. there is data to be read
+            # print(num_bytes)
+            data = self.sock.recv(num_bytes)
+            # print("Data read", data)
+            if len(data) != num_bytes:
+                print("Read", len(data), "bytes but was expecting", num_bytes)
+                return None
+            return data
+        except Exception:
+            pass
 
     # Returns None on failure, bytes object on success
     def send(self, data):
-        if not self._check_socket(select.POLLOUT, 0):
-            return None
-        # If here we got an event that is a POLLIN ie. there is data to be read
-        sent = self.sock.send(data)
-        if len(data) != sent:
-            return None
-        return True
+        try:
+            print("self._check_socket(select.POLLOUT, 0):", self._check_socket(select.POLLOUT, 0))
+            if not self._check_socket(select.POLLOUT, 50):
+                return None
+            # If here we got an event that is a POLLIN ie. there is data to be read
+            sent = self.sock.send(data)
+            print("Sent data in udp::send", list(map(int, data)), ", bytes sent:", sent)
+            if len(data) != sent:
+                return None
+            return True
+        except Exception:
+            pass
 
     def _check_socket(self, poll_type, timeout_ms):
+        return True
         self.poller.modify(self.sock, poll_type)
         events = self.poller.poll(timeout_ms)
         # We know that all fds will be this socket so can ignore them
         if not events:
+            print("No poll events to read from socket")
             return False
         # print("Events received", events)
         for fd, event in events:
-            assert fd == self.sock.fileno()
+            print("fd, events:", fd, all_events(event))
+            # print(self.sock.fileno())
+            # assert fd == self.sock.fileno()
+            # On Micropython these don't compare equal - suppose no notion of
+            # file descriptors etc.
             if event != poll_type:
                 raise OSError("Error - socket expected to be able to {} ({}): {}"
                         .format(
@@ -117,8 +132,8 @@ def gen():
     return dict(poll_codes)
 
 def main(argv):
-    print(all_events(9))
-    return
+    # print(all_events(9))
+    # return
 
     receiver = False
     if len(argv) > 1:
