@@ -6,6 +6,8 @@ import select
 import socket
 import time
 
+from countdown_timer import make_countdown_timer
+
 class SimpleUDP:
     """
     NOTE: This class reports short reads and write as failed receives/sends
@@ -38,7 +40,9 @@ class SimpleUDP:
     # Have chosen to return None to try and help remove ambiguity in case a zero
     # length payload is sent/received and code goes: if connc.recv(n, t):...
     # Returns None on failure, bytes object on success
+    # Further bodging with timer for now
     def recv(self, num_bytes, *, timeout_ms = 50):
+        timer = make_countdown_timer(millis = timeout_ms)
         try:
             if not self._check_socket(select.POLLIN, timeout_ms):
                 print("Nothing to read from socket")
@@ -53,16 +57,18 @@ class SimpleUDP:
             return data
         except Exception:
             pass
+        timer.sleep_till_expired()
 
     # Returns None on failure, bytes object on success
     def send(self, data):
         try:
-            print("self._check_socket(select.POLLOUT, 0):", self._check_socket(select.POLLOUT, 0))
+            # print("self._check_socket(select.POLLOUT, 0):",
+            #         self._check_socket(select.POLLOUT, 0))
             if not self._check_socket(select.POLLOUT, 50):
                 return None
             # If here we got an event that is a POLLIN ie. there is data to be read
             sent = self.sock.send(data)
-            print("Sent data in udp::send", list(map(int, data)), ", bytes sent:", sent)
+            # print("Sent data in udp::send", list(map(int, data)), ", bytes sent:", sent)
             if len(data) != sent:
                 return None
             return True

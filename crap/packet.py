@@ -34,9 +34,8 @@ class Packet:
     #                     self.sequence_number, self.payload)
 
     def __str__(self):
-        return "{{{:,} {:,} {:,} {}}}".format(self.sender, self.receiver,
-                self.id_change, self.sequence_number)
-                # , self.payload)
+        return "{{{:,} {:,} {:,} {} {}}}".format(self.sender, self.receiver,
+                self.id_change, self.sequence_number, self.payload)
 
     def __init__(self, *, sender, receiver, id_change = 0,
             sequence_number = SequenceNumber(n = 0, bytes_ = SEQUENCE_NUMBER_SIZE),
