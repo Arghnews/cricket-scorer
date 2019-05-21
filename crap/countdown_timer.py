@@ -40,19 +40,22 @@ class CountdownTimer:
         if started:
             self.reset()
 
+    # def valid(self):
+    #     return self._remaining_time() > 0
+
     def _remaining_time(self):
         return self._diff(self._last + self._countdown_millis, self._time_now())
 
     def just_expired(self):
         if self._expired:
             return False
-        self._expired = self._remaining_time() < 0
+        self._expired = self._remaining_time() <= 0
         return self._expired
 
     def sleep_till_expired(self):
         if self._expired:
             return
-        t = max(self._remaining_time() , 0)
+        t = max(self._remaining_time(), 0)
         if sys.implementation.name == "micropython":
             time.sleep_ms(t)
         else:
