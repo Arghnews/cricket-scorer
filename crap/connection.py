@@ -52,10 +52,10 @@ def sender2(sock, my_id = None):
     next_remote_seq = SequenceNumber(bytes_ = 4)
     next_local_seq = SequenceNumber(bytes_ = 4)
 
-    new_connection_countdown = make_countdown_timer(seconds = 10,
+    new_connection_id_countdown = make_countdown_timer(seconds = 10,
             started = False)
 
-    last_received_timer = make_countdown_timer(seconds = 15, started = False)
+    last_received_timer = make_countdown_timer(seconds = 16, started = False)
     connected = False
 
     resend_same_countdown = make_countdown_timer(seconds = 0.5, started = True)
@@ -70,12 +70,12 @@ def sender2(sock, my_id = None):
     while True:
 
         # print("Packet size:", Packet.packet_size())
-        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 4000))
+        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 50))
         print("Received:", packet)
         old_score = score
         score = latest_score()
 
-        if new_connection_countdown.just_expired():
+        if new_connection_id_countdown.just_expired():
             print("New connection reply window expired, resetting new_rx_id")
             new_rx_id = Packet.UNKNOWN_ID
         if last_received_timer.just_expired():
@@ -133,7 +133,7 @@ def sender2(sock, my_id = None):
             new_rx_id = Packet.UNKNOWN_ID
             next_remote_seq = SequenceNumber(bytes_ = 4)
             next_local_seq = SequenceNumber(bytes_ = 4)
-            new_connection_countdown.stop()
+            new_connection_id_countdown.stop()
             print("Switching connection - new receiver:", rx_id)
             # This is not a control packet - we have no way to differentiate
             # (currently) this as one. So put the correct updated score in here
@@ -148,7 +148,7 @@ def sender2(sock, my_id = None):
 
         else:
             if new_rx_id == Packet.UNKNOWN_ID:
-                new_connection_countdown.reset()
+                new_connection_id_countdown.reset()
                 new_rx_id = gen_random(4, excluding = (Packet.UNKNOWN_ID,
                     rx_id, new_rx_id))
                 print("Genning new rx_id", new_rx_id)
@@ -164,6 +164,9 @@ def sender2(sock, my_id = None):
         print("------------------------------------------------")
 
 def receiver2(sock, my_id = None):
+
+    f = open("receiver_score_output.txt", "w", buffering = 1)
+
     if my_id is None:
         my_id = gen_random(4, excluding = Packet.UNKNOWN_ID)
         print("Initial id:", my_id)
@@ -174,7 +177,7 @@ def receiver2(sock, my_id = None):
     score = bytes(9)
 
     while True:
-        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 3000))
+        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 50))
         if packet is not None:
             print("Received:", packet)
 
@@ -195,16 +198,18 @@ def receiver2(sock, my_id = None):
                 print("Got good packet")
                 if packet.payload != score:
                     score = packet.payload
-                    if probability(0.2, True, False):
-                        print("Setting wrong score for testing")
-                        # For testing, set wrong score
-                        score = int_to_bytes(-1, 9)
+                    # if probability(0.2, True, False):
+                    #     print("Setting wrong score for testing")
+                    #     # For testing, set wrong score
+                    #     score = int_to_bytes(-1, 9)
                     p = Packet(sender = my_id, receiver = rx_id,
                             sequence_number = next_local_seq.post_increment(),
                             payload = score)
                     print("Updating score to", int.from_bytes(score,
                         sys.byteorder), "and echoing back", p)
+                    f.write(str(int.from_bytes(score, sys.byteorder)) + "\n")
                     sock.send(p.__bytes__())
+                    lookout_timeout.reset()
             else:
                 print("Got old/duplicate packet")
 
