@@ -2,26 +2,22 @@
 
 set -u -o pipefail
 
-# interface=enp37s0
-interface=lo
-
 # https://wiki.linuxfoundation.org/networking/netem
 # https://lartc.org/howto/lartc.qdisc.html + 6~ pages (not fully read)
 # https://lartc.org/howto/lartc.qdisc.filters.html
 # https://www.linuxquestions.org/questions/linux-networking-3/limiting-upload-with-tc-4175470860/
 # https://www.cs.unm.edu/~crandall/netsfall13/TCtutorial.pdf
-#
 # And what feels like a shed load of linux man pages...
 
 # sudo tc qdisc add dev $interface root
-fixed_delay=500ms
-plus_minus=500ms
+# fixed_delay=500ms
+# plus_minus=500ms
 # sudo tc qdisc add dev $interface root netem delay $fixed_delay $plus_minus distribution normal
 
 # Restore to normal
 # sudo tc qdisc delete dev $interface root
 
-interface=lo:0
+# interface=lo:0
 # sudo ifconfig $interface 123.123.123.123
 # sudo tc qdisc add dev $interface handle ffff: ingress
 # sudo tc filter add dev lo parent ffff: protocol 17 u32 match udp dport 2520 action mirred egress redirect dev $interface
