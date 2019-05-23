@@ -19,7 +19,7 @@ class SimpleUDP:
 
     def __exit__(self, exc_type, exc_value, traceback):
         print("Closing socket")
-        self.poller.unregister(self.sock)
+        # self.poller.unregister(self.sock)
         self.sock.close()
 
     def __init__(self, server_port, client_ip, client_port):
@@ -32,112 +32,92 @@ class SimpleUDP:
         self.sock.setblocking(False)
         self.sock.bind(server_addr)
         self.sock.connect(client_addr)
-        self.poller = select.poll()
-        self.poller.register(self.sock)
+        # self.poller = select.poll()
+        # self.poller.register(self.sock)
 
-    # TODO: remove/change/think about these quick and dirty try blocks
+        # https://docs.micropython.org/en/latest/library/usocket.html#usocket.socket.sendall
+        # socket.sendall on non-blocking sockets is undefined behaviour on
+        # micropython, use write instead
+        if sys.implementation.name == "micropython":
+            self.send_func = self.sock.write
+        else:
+            self.send_func = self.sock.sendall
 
-    # Have chosen to return None to try and help remove ambiguity in case a zero
-    # length payload is sent/received and code goes: if connc.recv(n, t):...
-    # Returns None on failure, bytes object on success
-    # Further bodging with timer for now
+    # Despite https://docs.micropython.org/en/latest/library/usocket.html#usocket.socket.settimeout
+    # recommending use of (u)select.poll on micropython ports, it does not seem
+    # to work. If you send/recv and the first fails, all further polls using
+    # select.poll on the socket will fail.
+    # Solution: just try the recv and sends, don't poll first to check if "can"
+
     def recv(self, num_bytes, *, timeout_ms = 50):
-        timer = make_countdown_timer(millis = timeout_ms)
-        try:
-            if not self._check_socket(select.POLLIN, timeout_ms):
-                print("Nothing to read from socket")
-                return None
-            # If here we got an event that is a POLLIN ie. there is data to be read
-            # print(num_bytes)
-            data = self.sock.recv(num_bytes)
-            # print("Data read", data)
-            if len(data) != num_bytes:
-                print("Read", len(data), "bytes but was expecting", num_bytes)
-                return None
-            return data
-        except Exception:
-            pass
-        timer.sleep_till_expired()
+        assert num_bytes > 0, timeout_ms >= 0
+        n = min(10, timeout_ms)
+        timeout = make_countdown_timer(millis = timeout_ms / n)
+        for _ in range(n):
+            timeout.reset()
+            try:
+                data = self.sock.recv(num_bytes)
+                if len(data) == num_bytes:
+                    return data
+            except OSError:
+                pass
+            timeout.sleep_till_expired()
+        return None
 
-    # Returns None on failure, bytes object on success
     def send(self, data):
         assert type(data) is bytes
         try:
-            # print("self._check_socket(select.POLLOUT, 0):",
-            #         self._check_socket(select.POLLOUT, 0))
-            if not self._check_socket(select.POLLOUT, 50):
-                return None
-            # If here we got an event that is a POLLIN ie. there is data to be read
-            sent = self.sock.send(data)
-            # print("Sent data in udp::send", list(map(int, data)), ", bytes sent:", sent)
-            if len(data) != sent:
-                return None
-            # print("Sending", data)
-            return True
-        except Exception:
+            sent = self.send_func(data)
+            if sent == len(data):
+                return True
+        except OSError:
             pass
+        return None
 
-    def _check_socket(self, poll_type, timeout_ms):
-        return True
-        self.poller.modify(self.sock, poll_type)
-        events = self.poller.poll(timeout_ms)
-        # We know that all fds will be this socket so can ignore them
-        if not events:
-            print("No poll events to read from socket")
-            return False
-        # print("Events received", events)
-        for fd, event in events:
-            print("fd, events:", fd, all_events(event))
-            # print(self.sock.fileno())
-            # assert fd == self.sock.fileno()
-            # On Micropython these don't compare equal - suppose no notion of
-            # file descriptors etc.
-            if event != poll_type:
-                raise OSError("Error - socket expected to be able to {} ({}): {}"
-                        .format(
-                        "recv" if poll_type == select.POLLIN else "send",
-                        self.sock, all_events(event)))
-        return True
+    # def _check_socket(self, poll_type, timeout_ms):
+    #     self.poller.modify(self.sock, poll_type)
+    #     return any(event & poll_type
+    #             for _, event in self.poller.poll(timeout_ms))
 
-POLL_EVENTS = {
-        1: "POLLIN",
-        2: "POLLPRI",
-        4: "POLLOUT",
-        8: "POLLERR",
-        16: "POLLHUP",
-        32: "POLLNVAL",
-        64: "POLLRDNORM",
-        128: "POLLRDBAND",
-        256: "POLLWRNORM",
-        512: "POLLWRBAND",
-        1024: "POLLMSG",
-        8192: "POLLRDHUP",
-}
+# POLL_EVENTS = {
+#         1: "POLLIN",
+#         2: "POLLPRI",
+#         4: "POLLOUT",
+#         8: "POLLERR",
+#         16: "POLLHUP",
+#         32: "POLLNVAL",
+#         64: "POLLRDNORM",
+#         128: "POLLRDBAND",
+#         256: "POLLWRNORM",
+#         512: "POLLWRBAND",
+#         1024: "POLLMSG",
+#         8192: "POLLRDHUP",
+# }
 
-def all_events(mask):
-    val = 2 ** 13
-    events = []
-    while mask > 0:
-        if val <= mask:
-            mask -= val
-            if val in POLL_EVENTS:
-                events.append(POLL_EVENTS[val])
-        val //= 2
-    return ", ".join(events)
-    # POLL_EVENTS
+# def all_events(mask):
+#     val = 2 ** 13
+#     events = []
+#     while mask > 0:
+#         if val <= mask:
+#             mask -= val
+#             if val in POLL_EVENTS:
+#                 events.append(POLL_EVENTS[val])
+#         val //= 2
+#     return ", ".join(events)
+#     # POLL_EVENTS
 
-def gen():
-    import select
-    poll_codes = sorted(
-            [
-                (a, getattr(select, a))
-                for a in dir(select) if a.startswith("POLL")
-            ],
-            key = operator.itemgetter(1))
-    # print("\n".join(
-    #         str(val) + ": \"" + name + "\"," for name, val in poll_codes
-    #         ))
-    return dict(poll_codes)
+# def gen():
+#     import select
+#     poll_codes = sorted(
+#             [
+#                 (a, getattr(select, a))
+#                 for a in dir(select) if a.startswith("POLL")
+#             ],
+#             key = operator.itemgetter(1))
+#     # print("\n".join(
+#     #         str(val) + ": \"" + name + "\"," for name, val in poll_codes
+#     #         ))
+#     return dict(poll_codes)
 
 def main(argv):
     # print(all_events(9))

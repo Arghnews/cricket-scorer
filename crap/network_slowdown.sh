@@ -93,14 +93,17 @@ echo_then_do $tc class add dev ${IF_INET} parent 1: classid 1:20 htb \
 #                  [ reorder PRECENT [CORRELATION] [ gap DISTANCE ]]
 #                  [ rate RATE [PACKETOVERHEAD] [CELLSIZE] [CELLOVERHEAD]]
 
-
 echo_then_do $tc qdisc add dev ${IF_INET} parent 1:20 \
     netem \
-    delay 200ms 400ms distribution normal \
-    corrupt 0.5% \
-    duplicate 15% 40% \
-    loss 10% 40% \
-    reorder 25% 50%
+    delay 100ms 0ms distribution normal \
+    corrupt 1% \
+    duplicate 20% 40% \
+    loss 30% 40% \
+    reorder 50% 50%
+    # corrupt 10% \
+    # duplicate 40% 40% \
+    # loss 30% 40% \
+    # reorder 50% 50%
 
 # classify traffic
 # echo_then_do $tc filter add dev ${IF_INET} parent 1:0 protocol ip prio 1 u32 \

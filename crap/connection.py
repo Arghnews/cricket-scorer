@@ -76,10 +76,12 @@ from countdown_timer import make_countdown_timer
 class BaseConnection:
 
     def __init__(self, sock, my_id = None, rx_id = Packet.UNKNOWN_ID,
-            next_remote_seq = SequenceNumber(bytes_ = 4),
-            next_local_seq = SequenceNumber(bytes_ = 4)):
+            next_remote_seq = SequenceNumber(
+                bytes_ = Packet.SEQUENCE_NUMBER_SIZE),
+            next_local_seq = SequenceNumber(
+                bytes_ = Packet.SEQUENCE_NUMBER_SIZE)):
         if my_id is None:
-            my_id = gen_random(4, excluding = Packet.UNKNOWN_ID)
+            my_id = gen_random(Packet.ID_SIZE, excluding = Packet.UNKNOWN_ID)
 
         self.sock = sock
         self.my_id = my_id
@@ -105,20 +107,21 @@ class BaseConnection:
         return self.sock.send(packet.__bytes__())
 
     # Sender only
-    def send_id_change_response(self, received_id_change_packet, new_rx_id):
+    def send_id_change_response(self, id_change_packet, new_rx_id):
         packet = Packet(sender = self.my_id,
-            receiver = received_id_change_packet.sender, id_change = new_rx_id,
-            payload = int_to_bytes(-1, Packet.PAYLOAD_SIZE))
+                receiver = id_change_packet.sender, id_change = new_rx_id,
+                payload = int_to_bytes(-1, Packet.PAYLOAD_SIZE))
         self._print("Sending:", packet)
         return self.sock.send(packet.__bytes__())
 
     # Receiver only
-    def change_and_send_connection_change(self, packet):
+    def change_and_send_connection_change(self, id_change_packet):
         old_my_id = self.my_id
-        self.reset(my_id = packet.id_change, rx_id = packet.sender)
-        packet = Packet(sender = packet.id_change, receiver = packet.sender,
-            id_change = old_my_id,
-            payload = int_to_bytes(-1, Packet.PAYLOAD_SIZE))
+        self.reset(my_id = id_change_packet.id_change,
+                rx_id = id_change_packet.sender)
+        packet = Packet(sender = id_change_packet.id_change,
+                receiver = id_change_packet.sender, id_change = old_my_id,
+                payload = int_to_bytes(-1, Packet.PAYLOAD_SIZE))
         self._print("Sending:", packet)
         return self.sock.send(packet.__bytes__())
 
@@ -126,8 +129,23 @@ class BaseConnection:
         if my_id is not None:
             self.my_id = my_id
         self.rx_id = rx_id
-        self.next_remote_seq = SequenceNumber(bytes_ = 4)
-        self.next_local_seq = SequenceNumber(bytes_ = 4)
+        self.next_remote_seq = SequenceNumber(
+                bytes_ = Packet.SEQUENCE_NUMBER_SIZE)
+        self.next_local_seq = SequenceNumber(
+                bytes_ = Packet.SEQUENCE_NUMBER_SIZE)
+
+# We have a lot of (well - exclusively) hard coded timeouts
+#
+# Don't have:
+#   Any way to tell latency (and therefore respond to it)
+#   Any way to tell packet drop rate (and therefore respond to it)
+#       From this any kind of way to react to the medium dropping - usually
+#       congestion control is in here but for this at least obviously there is
+#       none as it's just us
+#
+#   Thoughts on how to genericise
+# We know there are only 3 kinds of packet, and 2 per sender and 2 per receiver
+# (1 shared type)
 
 def sender2(sock):
 
@@ -219,8 +237,8 @@ def sender2(sock):
         else:
             if new_rx_id == Packet.UNKNOWN_ID:
                 new_connection_id_countdown.reset()
-                new_rx_id = gen_random(4, excluding = (Packet.UNKNOWN_ID,
-                    conn.rx_id, new_rx_id))
+                new_rx_id = gen_random(Packet.ID_SIZE,
+                        excluding = (Packet.UNKNOWN_ID, conn.rx_id))
                 print("Genning new rx_id", new_rx_id)
             print("Responding with id_change packet to :", new_rx_id)
             conn.send_id_change_response(packet, new_rx_id)
@@ -233,8 +251,8 @@ def receiver2(sock):
     f = open("receiver_score_output.txt", "w", buffering = 1)
 
     conn = BaseConnection(sock)
-    lookout_timeout = make_countdown_timer(seconds = 5, started = True)
-    score = bytes(9)
+    lookout_timeout = make_countdown_timer(seconds = 1, started = True)
+    score = bytes(Packet.PAYLOAD_SIZE)
 
     conn.send(score)
     while True:
@@ -277,23 +295,22 @@ def receiver2(sock):
             conn.send(score)
 
         print("------------------------------------------------")
-        time.sleep(0.1)
+        # time.sleep(0.1)
 
 latest_score_score = 0
 def latest_score():
     global latest_score_score
     # Micropython has no user defined attribs on funcs
     # https://docs.micropython.org/en/latest/genrst/core_language.html#user-defined-attributes-for-functions-are-not-supported
-    if probability(0.20, True, False):
+    if probability(0.2, True, False):
         latest_score_score += 1
         print("Latest score increased to", latest_score_score)
-    return int_to_bytes(latest_score_score, 9)
+    return int_to_bytes(latest_score_score, Packet.PAYLOAD_SIZE)
 
 def main(argv):
 
     if len(argv) > 1:
         print("Receiver")
-        previous_lookout_msg = make_countdown_timer(seconds = 5)
         with SimpleUDP(2520, "127.0.0.1", 2521) as sock:
             receiver2(sock)
 

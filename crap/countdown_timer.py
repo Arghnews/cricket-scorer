@@ -13,18 +13,17 @@ def make_countdown_timer(*, millis = None, seconds = None, started = True):
     if seconds is not None:
         millis = seconds * 1000
 
-    countdown_millis = millis
     if sys.implementation.name == "micropython":
         time_now = lambda: time.ticks_ms()
         diff = time.ticks_diff
-        # has_expired = lambda next_valid: \
-        #         time.ticks_diff(next_valid, time_now()) < 0
     else:
         time_now = lambda: int(time.monotonic() * 1000)
-        # gen_next_valid = lambda: time_now() + millis
-        # has_expired = lambda next_valid: time_now() > next_valid
         from operator import sub
         diff = sub
+
+    # This MUST be an integer for micropython time.ticks_diff to work properly
+    countdown_millis = int(millis)
+
     return CountdownTimer(time_now, diff, countdown_millis, started)
 
 class CountdownTimer:
@@ -32,6 +31,8 @@ class CountdownTimer:
     def __init__(self, time_now, diff, countdown_millis, started):
         self._time_now = time_now
         self._diff = diff
+
+        assert type(countdown_millis) is int
         self._countdown_millis = countdown_millis
 
         self._expired = True
