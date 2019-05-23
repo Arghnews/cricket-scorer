@@ -61,6 +61,7 @@ class SimpleUDP:
 
     # Returns None on failure, bytes object on success
     def send(self, data):
+        assert type(data) is bytes
         try:
             # print("self._check_socket(select.POLLOUT, 0):",
             #         self._check_socket(select.POLLOUT, 0))
@@ -71,6 +72,7 @@ class SimpleUDP:
             # print("Sent data in udp::send", list(map(int, data)), ", bytes sent:", sent)
             if len(data) != sent:
                 return None
+            # print("Sending", data)
             return True
         except Exception:
             pass

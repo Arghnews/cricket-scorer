@@ -75,7 +75,7 @@ from countdown_timer import make_countdown_timer
 
 class BaseConnection:
 
-    def __init__(self, sock, my_id = None, rx_id = Packet.UNKNOWN_ID
+    def __init__(self, sock, my_id = None, rx_id = Packet.UNKNOWN_ID,
             next_remote_seq = SequenceNumber(bytes_ = 4),
             next_local_seq = SequenceNumber(bytes_ = 4)):
         if my_id is None:
@@ -86,47 +86,55 @@ class BaseConnection:
         self.rx_id = rx_id
         self.next_remote_seq = next_remote_seq
         self.next_local_seq = next_local_seq
+        self.logging = True
 
     def recv(self, timeout_ms):
         return Packet.from_bytes(self.sock.recv(
             Packet.packet_size(), timeout_ms = timeout_ms))
 
-    def send_data(self, payload):
+    def _print(self, *args, **kwargs):
+        if self.logging:
+            print(*args, **kwargs)
+
+    def send(self, payload):
+        # print("Sending response data packet", packet)
         packet = Packet(sender = self.my_id, receiver = self.rx_id,
                 sequence_number = self.next_local_seq.post_increment(),
                 payload = payload)
-        # print("Sending response data packet", packet)
+        self._print("Sending:", packet)
+        return self.sock.send(packet.__bytes__())
+
+    # Sender only
+    def send_id_change_response(self, received_id_change_packet, new_rx_id):
+        packet = Packet(sender = self.my_id,
+            receiver = received_id_change_packet.sender, id_change = new_rx_id,
+            payload = int_to_bytes(-1, Packet.PAYLOAD_SIZE))
+        self._print("Sending:", packet)
         return self.sock.send(packet.__bytes__())
 
     # Receiver only
     def change_and_send_connection_change(self, packet):
-        packet = Packet(sender = packet.id_change, rx_id = packet.sender,
-                id_change = self.my_id)
+        old_my_id = self.my_id
         self.reset(my_id = packet.id_change, rx_id = packet.sender)
+        packet = Packet(sender = packet.id_change, receiver = packet.sender,
+            id_change = old_my_id,
+            payload = int_to_bytes(-1, Packet.PAYLOAD_SIZE))
+        self._print("Sending:", packet)
         return self.sock.send(packet.__bytes__())
 
-    # Receiver only
-    def send_
-
-    def reset(*, my_id = None, rx_id = None):
+    def reset(self, *, my_id = None, rx_id = Packet.UNKNOWN_ID):
         if my_id is not None:
             self.my_id = my_id
-        if rx_id is not None:
-            self.rx_id = rx_id
+        self.rx_id = rx_id
         self.next_remote_seq = SequenceNumber(bytes_ = 4)
         self.next_local_seq = SequenceNumber(bytes_ = 4)
 
-def sender2(sock, my_id = None):
+def sender2(sock):
 
     # TODO now: immediately when connected send score
 
-    if my_id is None:
-        my_id = gen_random(4, excluding = Packet.UNKNOWN_ID)
-        print("Initial id:", my_id)
-    rx_id = Packet.UNKNOWN_ID
+    conn = BaseConnection(sock)
     new_rx_id = Packet.UNKNOWN_ID
-    next_remote_seq = SequenceNumber(bytes_ = 4)
-    next_local_seq = SequenceNumber(bytes_ = 4)
 
     new_connection_id_countdown = make_countdown_timer(seconds = 10,
             started = False)
@@ -134,7 +142,7 @@ def sender2(sock, my_id = None):
     last_received_timer = make_countdown_timer(seconds = 16, started = False)
     connected = False
 
-    resend_same_countdown = make_countdown_timer(seconds = 0.5, started = True)
+    resend_same_countdown = make_countdown_timer(seconds = 0.2, started = True)
     # We use this to identify sending "same packet" again
     last_payload_sent = None
 
@@ -143,10 +151,12 @@ def sender2(sock, my_id = None):
 
     # TODO: add initial send on startup
 
+    conn.send(score)
+
     while True:
 
         # print("Packet size:", Packet.packet_size())
-        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 50))
+        packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 3000))
         print("Received:", packet)
         old_score = score
         score = latest_score()
@@ -158,24 +168,19 @@ def sender2(sock, my_id = None):
             print("Disconnected")
             connected = False
             # Reset everything
-            rx_id = Packet.UNKNOWN_ID
+            conn.reset()
             new_rx_id = Packet.UNKNOWN_ID
-            next_remote_seq = SequenceNumber(bytes_ = 4)
-            next_local_seq = SequenceNumber(bytes_ = 4)
 
         if packet is None:
             if connected and old_score != score:
-                p = Packet(sender = my_id, receiver = rx_id,
-                        sequence_number = next_local_seq.post_increment(),
-                        payload = score)
-                sock.send(p.__bytes__())
-                last_payload_sent = p.payload
                 print("Sending new score")
+                conn.send(score)
+                last_payload_sent = score
 
-        elif packet.sender == rx_id and packet.receiver == my_id:
-            if packet.sequence_number >= next_remote_seq:
+        elif packet.sender == conn.rx_id and packet.receiver == conn.my_id:
+            if packet.sequence_number >= conn.next_remote_seq:
                 last_received_timer.reset()
-                next_remote_seq = packet.sequence_number + 1
+                conn.next_remote_seq = packet.sequence_number + 1
                 print("Got good packet")
                 if packet.payload != score:
                     print("GOT WRONG SCORE ----------------------------------")
@@ -183,12 +188,9 @@ def sender2(sock, my_id = None):
                             len(packet.payload) == Packet.PAYLOAD_SIZE
                     if score != last_payload_sent or \
                             resend_same_countdown.just_expired():
-                        p = Packet(sender = my_id, receiver = rx_id,
-                                sequence_number = next_local_seq.post_increment(),
-                                payload = score)
-                        print("Sending response data packet", p)
-                        sock.send(p.__bytes__())
-                        last_payload_sent = p.payload
+                        print("Sending response data packet")
+                        conn.send(score)
+                        last_payload_sent = score
                         resend_same_countdown.reset()
                     else:
                         print("Not sending updated score as would be duplicate "
@@ -196,28 +198,20 @@ def sender2(sock, my_id = None):
             else:
                 print("Got old/duplicate packet")
 
-        elif packet.sender == rx_id and packet.receiver == Packet.UNKNOWN_ID:
-            # If we don't we force a re-change of connection on receiving old
-            # packets from the current connection that has just been changed to
+        elif packet.sender == conn.rx_id and packet.receiver == Packet.UNKNOWN_ID:
             print("Got old discovery packet from current receiver - ignoring")
-            # print("AJKSDHFJASDHF\n\n\n\nasdfjkadskfjkasdjfjasdkj\n\n\nasdkfjas")
-            pass
+            assert False, "This should never happen anymore"
 
-        elif packet.sender == new_rx_id and packet.receiver == my_id \
+        elif packet.sender == new_rx_id and packet.receiver == conn.my_id \
                 and packet.id_change != Packet.UNKNOWN_ID:
-            rx_id = new_rx_id
+            conn.reset(rx_id = new_rx_id)
             new_rx_id = Packet.UNKNOWN_ID
-            next_remote_seq = SequenceNumber(bytes_ = 4)
-            next_local_seq = SequenceNumber(bytes_ = 4)
             new_connection_id_countdown.stop()
-            print("Switching connection - new receiver:", rx_id)
+            print("Switching connection - new receiver:", conn.rx_id)
             # This is not a control packet - we have no way to differentiate
             # (currently) this as one. So put the correct updated score in here
-            p = Packet(sender = my_id, receiver = rx_id,
-                    sequence_number = next_local_seq.post_increment(),
-                    payload = score)
-            print("Sending score", p)
-            sock.send(p.__bytes__())
+            print("Sending score")
+            conn.send(score)
             connected = True
             last_received_timer.reset()
             last_payload_sent = None
@@ -226,20 +220,15 @@ def sender2(sock, my_id = None):
             if new_rx_id == Packet.UNKNOWN_ID:
                 new_connection_id_countdown.reset()
                 new_rx_id = gen_random(4, excluding = (Packet.UNKNOWN_ID,
-                    rx_id, new_rx_id))
+                    conn.rx_id, new_rx_id))
                 print("Genning new rx_id", new_rx_id)
-            p = Packet(
-                sender = my_id,
-                receiver = packet.sender,
-                id_change = new_rx_id)
-            print("Responding with id_change packet:", p)
-            print("new_rx_id =", new_rx_id)
-            sock.send(p.__bytes__())
+            print("Responding with id_change packet to :", new_rx_id)
+            conn.send_id_change_response(packet, new_rx_id)
             last_payload_sent = None
 
         print("------------------------------------------------")
 
-def receiver2(sock, my_id = None):
+def receiver2(sock):
 
     f = open("receiver_score_output.txt", "w", buffering = 1)
 
@@ -247,8 +236,9 @@ def receiver2(sock, my_id = None):
     lookout_timeout = make_countdown_timer(seconds = 5, started = True)
     score = bytes(9)
 
+    conn.send(score)
     while True:
-        packet = conn.recv(timeout_ms = 50)
+        packet = conn.recv(timeout_ms = 2000)
         if packet is not None:
             print("Received:", packet)
 
@@ -283,9 +273,8 @@ def receiver2(sock, my_id = None):
             conn.change_and_send_connection_change(packet)
 
         else:
-            p = Packet(sender = my_id, receiver = Packet.UNKNOWN_ID)
-            print("Got unknown sending back my details:", p)
-            sock.send(p.__bytes__())
+            print("Got unknown sending back my details")
+            conn.send(score)
 
         print("------------------------------------------------")
         time.sleep(0.1)
@@ -317,37 +306,37 @@ def main(argv):
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
 
-# Sender
-        if packet is None:
-            if connected and old_score != score:
+# # Sender
+#         if packet is None:
+#             if connected and old_score != score:
 
-        elif packet.sender == rx_id and packet.receiver == my_id \
-                and packet.id_change == Packet.UNKNOWN_ID:
-            if packet.sequence_number >= next_remote_seq:
-                if packet.payload != score:
-                    if score != last_payload_sent or \
-                            resend_same_countdown.just_expired():
-                    else:
-            else:
+#         elif packet.sender == rx_id and packet.receiver == my_id \
+#                 and packet.id_change == Packet.UNKNOWN_ID:
+#             if packet.sequence_number >= next_remote_seq:
+#                 if packet.payload != score:
+#                     if score != last_payload_sent or \
+#                             resend_same_countdown.just_expired():
+#                     else:
+#             else:
 
-        elif packet.sender == rx_id and packet.receiver == Packet.UNKNOWN_ID:
+#         elif packet.sender == rx_id and packet.receiver == Packet.UNKNOWN_ID:
 
-        elif packet.sender == new_rx_id and packet.receiver == my_id \
-                and packet.id_change != Packet.UNKNOWN_ID:
+#         elif packet.sender == new_rx_id and packet.receiver == my_id \
+#                 and packet.id_change != Packet.UNKNOWN_ID:
 
-        else:
-            if new_rx_id == Packet.UNKNOWN_ID:
-# Receiver
+#         else:
+#             if new_rx_id == Packet.UNKNOWN_ID:
+# # Receiver
 
-        if packet is None: # Timed out or got garbled message
-            if lookout_timeout.just_expired():
+#         if packet is None: # Timed out or got garbled message
+#             if lookout_timeout.just_expired():
 
-        elif packet.sender == rx_id and packet.receiver == my_id \
-                and packet.id_change == Packet.UNKNOWN_ID:
-            if packet.sequence_number >= next_remote_seq:
-                if packet.payload != score:
-            else:
+#         elif packet.sender == rx_id and packet.receiver == my_id \
+#                 and packet.id_change == Packet.UNKNOWN_ID:
+#             if packet.sequence_number >= next_remote_seq:
+#                 if packet.payload != score:
+#             else:
 
-        elif packet.receiver == my_id and packet.id_change != Packet.UNKNOWN_ID:
+#         elif packet.receiver == my_id and packet.id_change != Packet.UNKNOWN_ID:
 
-        else:
+#         else:
