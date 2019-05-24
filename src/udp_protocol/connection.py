@@ -147,7 +147,9 @@ class BaseConnection:
 # We know there are only 3 kinds of packet, and 2 per sender and 2 per receiver
 # (1 shared type)
 
-def sender2(sock):
+def sender_loop(sock, get_score_func):
+    # get_score_func must return bytes object of len Packet.PAYLOAD_SIZE that
+    # will be sent across - ie. the score.
 
     # TODO now: immediately when connected send score
 
@@ -164,7 +166,7 @@ def sender2(sock):
     # We use this to identify sending "same packet" again
     last_payload_sent = None
 
-    score = latest_score()
+    score = get_score_func()
     # latest_remote_score = None
 
     # TODO: add initial send on startup
@@ -177,7 +179,7 @@ def sender2(sock):
         packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 3000))
         print("Received:", packet)
         old_score = score
-        score = latest_score()
+        score = get_score_func()
 
         if new_connection_id_countdown.just_expired():
             print("New connection reply window expired, resetting new_rx_id")
@@ -246,9 +248,9 @@ def sender2(sock):
 
         print("------------------------------------------------")
 
-def receiver2(sock):
+def receiver_loop(sock):
 
-    f = open("receiver_score_output.txt", "w", buffering = 1)
+    # f = open("receiver_score_output.txt", "w", buffering = 1)
 
     conn = BaseConnection(sock)
     lookout_timeout = make_countdown_timer(seconds = 1, started = True)
@@ -256,7 +258,7 @@ def receiver2(sock):
 
     conn.send(score)
     while True:
-        packet = conn.recv(timeout_ms = 2000)
+        packet = conn.recv(timeout_ms = 1000)
         if packet is not None:
             print("Received:", packet)
 
@@ -280,7 +282,7 @@ def receiver2(sock):
                     #     score = int_to_bytes(-1, 9)
                     print("Updating score to", int.from_bytes(score,
                         sys.byteorder), "and echoing back")
-                    f.write(str(int.from_bytes(score, sys.byteorder)) + "\n")
+                    # f.write(str(int.from_bytes(score, sys.byteorder)) + "\n")
                     conn.send(score)
                     lookout_timeout.reset()
             else:
@@ -302,7 +304,7 @@ def latest_score():
     global latest_score_score
     # Micropython has no user defined attribs on funcs
     # https://docs.micropython.org/en/latest/genrst/core_language.html#user-defined-attributes-for-functions-are-not-supported
-    if probability(0.2, True, False):
+    if probability(0.8, True, False):
         latest_score_score += 1
         print("Latest score increased to", latest_score_score)
     return int_to_bytes(latest_score_score, Packet.PAYLOAD_SIZE)
@@ -312,13 +314,13 @@ def main(argv):
     if len(argv) > 1:
         print("Receiver")
         with SimpleUDP(2520, "127.0.0.1", 2521) as sock:
-            receiver2(sock)
+            receiver_loop(sock)
 
     else:
         # Problem atm is how to send stuff and receive and know stuff.
         print("Sender")
         with SimpleUDP(2521, "127.0.0.1", 2520) as sock:
-            sender2(sock)
+            sender_loop(sock, latest_score)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

@@ -161,8 +161,6 @@ class SequenceNumber(object):
     # explicit function
     def __int__(self):
         return self.n
-    def as_int(self):
-        return self.__int__()
 
     def __str__(self):
         return "{:,}".format(self.n)

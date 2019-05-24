@@ -18,8 +18,10 @@ def make_countdown_timer(*, millis = None, seconds = None, started = True):
         diff = time.ticks_diff
     else:
         time_now = lambda: int(time.monotonic() * 1000)
-        from operator import sub
-        diff = sub
+        # Cannot import here as imported processed on file parse?
+        # from operator import sub
+        # diff = sub
+        diff = lambda a, b: a - b
 
     # This MUST be an integer for micropython time.ticks_diff to work properly
     countdown_millis = int(millis)
