@@ -9,8 +9,12 @@ import wifi
 
 from common import *
 
+from countdown_timer import make_countdown_timer
+
 pin = machine.Pin(2, machine.Pin.OUT)
 pin.value(1) # Active low, turn off
+
+print("This machine is the receiver")
 
 try:
     print("Initialising i2c")
@@ -20,11 +24,19 @@ try:
 
     print("Connecting to network", SSID)
     station = wifi.station_init(RECEIVER_IP)
-    while not wifi.connect_to_network(station, SSID, WIFI_PASS):
-        print("Attempting to connect to network", SSID)
-        time.sleep(5)
-        flash_n_times(pin, 5)
-    get_score = lambda: i2c.read()
+    station.connect(SSID, WIFI_PASS)
+    print_connecting_timer = make_countdown_timer(seconds = 8, started = True)
+    while True:
+        if print_connecting_timer.just_expired():
+            print("Still connecting to network...")
+            print_connecting_timer.reset()
+        if station.isconnected():
+            print("Connected!")
+            break
+        machine.idle()
+
+    wifi.print_station_status(station)
+
 
     print("Going into receive loop")
     with udp_receive.SimpleUDP(RECEIVER_PORT, SENDER_IP, SENDER_PORT) as sock:

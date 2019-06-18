@@ -58,7 +58,8 @@ class SimpleUDP:
                 data = self.sock.recv(num_bytes)
                 if len(data) == num_bytes:
                     return data
-            except OSError:
+            except OSError as e:
+                print("udp_receive.recv:", e)
                 pass
             timeout.sleep_till_expired()
         return None
@@ -69,7 +70,8 @@ class SimpleUDP:
             sent = self.send_func(data)
             if sent == len(data):
                 return True
-        except OSError:
+        except OSError as e:
+            print("udp_receive.send:", e)
             pass
         return None
 
