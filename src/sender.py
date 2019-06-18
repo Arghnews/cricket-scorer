@@ -116,6 +116,7 @@ try:
     sock = try_tcp_connect(RECEIVER_IP, RECEIVER_PORT)
 
     print("Moving into sending loop")
+    last_score = None
     while True:
         vals = bytearray()
         print("Reading status over i2c")
@@ -124,9 +125,11 @@ try:
             vals.append(code_to_digit[val])
         assert len(vals) == MESSAGE_LEN
         vals = bytes(suppress_leading_zeroes(vals, 3, 1, 2, 3))
-        print("Sending", len(vals), "bytes:", list(vals))
-        sock.write(vals)
-        time.sleep(1)
+        if last_score != vals:
+            last_score = vals
+            print("Score changed, sending", len(vals), "bytes:", list(vals))
+            sock.write(vals)
+        time.sleep(0.5)
 
 except Exception as e:
     sys.print_exception(e)
