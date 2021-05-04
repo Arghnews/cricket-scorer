@@ -1,0 +1,15 @@
+[Unit]
+Description=Run script at startup after network becomes reachable
+Requires=network.target
+After=network.target
+
+[Service]
+Type=simple
+#RemainAfterExit=no
+ExecStart=/home/pi/cricket_scorer/scripts/wifi_timeout_disable.sh
+TimeoutStartSec=1200
+RuntimeMaxSec=1200
+#Restart=always
+
+[Install]
+WantedBy=default.target

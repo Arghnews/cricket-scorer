@@ -1,0 +1,22 @@
+Light up all digits on startup - done
+
+Try and fix when a digit gets stuck on - done
+    1st innings first digit currently
+
+Change dumb network lookout stuff on sender from python to bash,
+as if we have the wifi connection then the network MUST be up. - done
+
+Sender more lookout packets on start - done
+
+Wrap everything in try except blocks, especially all the I2C stuff to make exception safe - done
+
+Add proper logging so can debug from afar - done
+
+Rejig net/utility especially, no need for stuff now we've binned the esp8266 entirely
+
+Change callbacks to coroutines as no esp8266 so it's supported and improves interface
+
+Fix hard coding of spreadsheet path
+
+Implement the GUI
+

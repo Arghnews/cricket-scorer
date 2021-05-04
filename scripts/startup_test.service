@@ -1,0 +1,30 @@
+[Unit]
+Description=Run script at startup after network becomes reachable
+Requires=network.target
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+#RemainAfterExit=no
+
+#ExecStart=/usr/bin/python3 /home/pi/cricket_scorer/src/cricket.py receiver --profile receiver_args_mark1
+#ExecStart=/usr/bin/python3 /home/pi/cricket_scorer/src/cricket.py receiver --profile receiver_args_mark2
+#ExecStart=/usr/bin/python3 /home/pi/cricket_scorer/src/cricket.py sender --profile sender_args_i2c
+
+ExecStart=/usr/bin/python3 /home/pi/cricket_scorer/src/cricket.py sender --profile sender_args_i2c
+
+#TimeoutStartSec=0
+
+# Time to wait before restarting service if failed
+RestartSec=1000ms
+
+Restart=always
+StandardOutput=append:/home/pi/cricket_scorer/logs/std_output.log
+StandardError=append:/home/pi/cricket_scorer/logs/std_error.log
+
+#StartLimitBurst=
+
+[Install]
+WantedBy=default.target
+
