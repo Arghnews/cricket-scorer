@@ -16,15 +16,15 @@ def int_to_bytes(i, n):
     return bytes(b)
 
 # Test score reader
-class ScoreGenerator:
-    def __init__(self, *args):
-        self.score = 0
-    def __call__(self):
+def score_generator(*args):
+    if args:
+        print("Additional args received:", *args)
+    score = 0
+    while True:
         if random.random() >= 0.2:
-            self.score += 1
-            print("Latest score increased to", self.score)
-        #  return int_to_bytes(latest_score_score, Packet.PAYLOAD_SIZE)
-        return int_to_bytes(self.score, Packet.PAYLOAD_SIZE)
+            score += 1
+            print("Latest score increased to", score)
+            yield int_to_bytes(score, Packet.PAYLOAD_SIZE)
 
 # Test score writer
 class ScorePrinter:

@@ -14,9 +14,18 @@ Add proper logging so can debug from afar - done
 
 Rejig net/utility especially, no need for stuff now we've binned the esp8266 entirely
 
-Change callbacks to coroutines as no esp8266 so it's supported and improves interface
+Change callbacks to generators (simpler) (coroutines) as no esp8266 so it's supported and improves interface
 
 Fix hard coding of spreadsheet path
 
 Implement the GUI
+
+Add filepath selection - this can, and does, block the rest of the GUI, and that's fine
+
+Add excel cell selection to GUI for total, wickets, overs, 1st innnigs
+Add workbook name
+Add error cell selection
+
+Think of neater way to parse arguments for excel reader, probably in cricket.py if excel then parse additional
+    Work out how for argparse to only parse some arguments then stop, hand off to subparser
 

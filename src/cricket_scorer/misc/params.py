@@ -113,7 +113,7 @@ add_sender_profile("test_sender_args", SenderArgs(
     new_connection_id_countdown_seconds = 10,
     last_received_timer_seconds = 25,
     resend_same_countdown_seconds = 0.35,
-    score_reader = misc.ScoreGenerator,
+    score_reader = misc.score_generator,
     logger = my_logger.get_console_logger,
     sock = lambda logger: udp_receive.SimpleUDP(2521, logger),
     ))
@@ -144,7 +144,7 @@ add_sender_profile("_sender_args_base", SenderArgs(
 if i2c_enabled:
     add_sender_profile("sender_args_i2c",
             sender_profiles["_sender_args_base"]._replace(
-        score_reader = score_reader_i2c.ScoreReaderI2c,
+        score_reader = score_reader_i2c.score_reader_i2c,
         logger = lambda: my_logger.get_datetime_file_logger(logs_root = logs_root),
         ))
 

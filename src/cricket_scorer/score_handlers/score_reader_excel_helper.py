@@ -1,17 +1,4 @@
-import datetime
-import itertools
-from recordclass import recordclass, make_dataclass
-
-def serialise_score(size, n):
-    try:
-        n = str(int(n)).zfill(size)
-        return [int(n[i * -1]) for i in range(size, 0, -1)]
-    except Exception as e:
-        return None
-
 # ScoreData = recordclass("ScoreData", ["digits", "cell", "val"])
-ScoreData = make_dataclass("ScoreData", [("digits", int), ("cell", str), ("val", int)], defaults = (0,))
-
 class Scores:
     # We are relying on python 3.7+ here for insertion order guarantee, consider changing to ordered dict
     # in case run on older python installs
@@ -37,11 +24,3 @@ class Scores:
         return bytes(itertools.chain.from_iterable(
             serialise_score(score_data.digits, score_data.val)
             for score_data in self.scores.values()))
-
-# This can be deleted
-# Returns datetime to nearest 10 mins
-def datetime_near_now():
-    # https://stackoverflow.com/a/3464000
-    tm = datetime.datetime.now()
-    tm = tm - datetime.timedelta(seconds = tm.second % 5, microseconds = tm.microsecond)
-    return tm

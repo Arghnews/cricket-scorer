@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
 import argparse
+import asyncio
 import sys
 
 from cricket_scorer.misc import params
 from cricket_scorer.net import connection
 
-def main(argv):
+async def main():
     parser = argparse.ArgumentParser(allow_abbrev = False)
     #  parser.add_argument("mode", choices = ["sender", "receiver"])
     #  parser.add_argument("--profile", choices = params.profiles.keys(), required = True)
@@ -23,16 +24,50 @@ def main(argv):
     receiver_parser.add_argument("--profile", choices = get_keys(params.receiver_profiles), required = True)
 
     # I don't understand why argv doesn't go in here, but it doesn't
-    parsed_args = parser.parse_args()
+    #  parsed_args = parser.parse_args()
+    parsed_args, additional_args = parser.parse_known_args()
+
+    print("parsed_args:", parsed_args)
+    print("additional_args:", additional_args)
 
     mode, profile = parsed_args.mode, parsed_args.profile
 
     print("Running cricket program with mode:", mode, "profile:", profile, " args:", parsed_args)
 
+    import time
+    import cricket_scorer.score_handlers.score_reader_i2c as reader
+    import cricket_scorer.score_handlers.misc as m
+
     if mode == "sender":
-        connection.sender_loop(params.sender_profiles[profile])
+        #  connection.sender_loop(params.sender_profiles[profile])
+        print("Would now run with SENDER:", params.sender_profiles[profile])
+        args = params.sender_profiles[profile]
+
+        #  reader_gen = reader.score_reader_i2c(args.logger())
+        reader_gen = m.score_generator(additional_args)
+
+        coro = connection.sender_loop(args.logger(), args)
+        await coro.asend(None)
+
+        while True:
+            score = next(reader_gen)
+            print("Score is:", score)
+            await coro.asend(score)
+            time.sleep(1)
+
+        #  i = 0
+        #  while True:
+            #  i += 1
+            #  print("Main sending", i)
+            #  val = await coro.asend(i)
+            #  print("Main received", val, "\n")
+            #  time.sleep(1)
+
     elif parsed_args.mode == "receiver":
         connection.receiver_loop(params.receiver_profiles[profile])
 
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+iol = asyncio.get_event_loop()
+iol.run_until_complete(main())
+
+#  if __name__ == "__main__":
+    #  sys.exit(main(sys.argv))
