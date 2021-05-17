@@ -1,10 +1,11 @@
 import itertools
 import os
+import multiprocessing as mp
 
 from recordclass import recordclass, make_dataclass
 import xlwings as xw
 
-from .score_reader_excel_helper import Scores
+# from .score_reader_excel_helper import Scores
 from cricket_scorer.net.packet import Packet
 
 ScoreData = make_dataclass("ScoreData",
@@ -19,15 +20,60 @@ default_cells = {
             "1st innings":   ScoreData(digits = 3, cell = "D2"),
         }
 
+class ScoreReaderExcel:
+    def __init__(self, log) -> None:
+        self.active: bool = False
+        self.log = log
+        self.q = mp.Queue()
+        self.p = mp.Process(target=f, args=(self.log, self.q,))
+    def start(self, spreadsheet_path, sheet, cells = default_cells,
+        error_message_cell = None):
+        self.active = True
+        self.p.start()
+
+def f(q: mp.Queue, log, spreadsheet_path, sheet, cells = default_cells,
+        error_message_cell = None):
+
+    log.info("Using spreadsheet at:", os.path.realpath(spreadsheet_path))
+    workbook = xw.Book(spreadsheet_path)
+    sheet = workbook.sheets[sheet]
+    last_val = None
+    while True:
+        unparsable_score_names = []
+        for score_name, score_data in cells.items():
+            # Read the cell value from the spreadsheet
+            cell_value = sheet.range(score_data.cell).value
+
+            if serialise_score(score_data.digits, cell_value) is None:
+                unparsable_score_names.append(score_name)
+            else:
+                score_data.val = cell_value
+
+        if error_message_cell:
+            update_error_message_cell(sheet, error_message_cell,
+                    unparsable_score_names)
+
+        # yield bytes(itertools.chain.from_iterable(
+        val = bytes(itertools.chain.from_iterable(
+            serialise_score(score_data.digits, score_data.val)
+            for score_data in [cells[key] for key in serialisation_order]
+            ))
+        if val != last_val:
+            q.put(val)
+
+    # for i in score_reader_excel(*args):
+        # q.put(i)
+
 def score_reader_excel(log, spreadsheet_path, sheet, cells = default_cells,
         error_message_cell = None):
 
-    if set(serialisation_order) != set(cells.keys()):
-        raise RuntimeError("Spreadsheet cell keys must match:" +
-                str(serialisation_order))
-    assert sum(v.digits for v in cells.values()) == Packet.PAYLOAD_SIZE, \
-            "Score digits don't add to packet payload size:" + \
-            str(Packet.PAYLOAD_SIZE)
+    # TODO: uncomment these valid assertions
+    # if set(serialisation_order) != set(cells.keys()):
+    #     raise RuntimeError("Spreadsheet cell keys must match:" +
+    #             str(serialisation_order))
+    # assert sum(v.digits for v in cells.values()) == Packet.PAYLOAD_SIZE, \
+    #         "Score digits don't add to packet payload size:" + \
+    #         str(Packet.PAYLOAD_SIZE)
 
     log.info("Using spreadsheet at:", os.path.realpath(spreadsheet_path))
     workbook = xw.Book(spreadsheet_path)

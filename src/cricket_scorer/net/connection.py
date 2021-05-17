@@ -221,14 +221,15 @@ async def sender_loop(log, args):
 
         #  score_reader = args.score_reader(log)
         score = (yield)
+        if score is False:
+            print("Quitting early from sending loop")
+            return
 
         #  score = next(score_reader)
         log.info("Score:", Packet.payload_as_string(score))
 
         log.info("Sending out score")
         conn.sendto(score, args.receiver_ip_port)
-
-        recv = None
 
         while True:
 
@@ -247,6 +248,8 @@ async def sender_loop(log, args):
             # Yield control back to main
             old_score = score
             score = (yield)
+            if score is False:
+                break
             #  score = next(score_reader)
 
             if new_connection_id_countdown.just_expired():
@@ -323,6 +326,7 @@ async def sender_loop(log, args):
                 conn.send_id_change_response(packet, new_rx_id,
                         args.receiver_ip_port)
                 last_payload_sent = None
+        print("Received close signal, stopping sending loop")
 
 def receiver_loop(args):
     log = args.logger()

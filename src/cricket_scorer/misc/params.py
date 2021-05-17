@@ -153,9 +153,24 @@ if i2c_enabled:
         logger = my_logger.get_console_logger,
         ))
 
+# TODO: this probably shouldn't be a console logger only in actual
 if excel_enabled:
-    add_sender_profile("sender_args_excel",
-            sender_profiles["_sender_args_base"]._replace(
+    # add_sender_profile("sender_args_excel",
+    #         sender_profiles["_sender_args_base"]._replace(
+    #     score_reader = lambda *args, **kwargs: score_reader_excel.score_reader_excel(*args, **kwargs),
+    #     ))
+    add_sender_profile("sender_args_excel", SenderArgs(
+        receiver_ip_port = ("192.168.4.1", 2520),
+        lookout_timeout_seconds = 10,
+        receive_loop_timeout_milliseconds = 20,
+        new_connection_id_countdown_seconds = 10,
+        last_received_timer_seconds = 45,
+        resend_same_countdown_seconds = 0.5,
+        # score_reader = None,
+        score_reader = lambda *args, **kwargs: score_reader_excel.score_reader_excel(
+            *args, **kwargs),
+        # logger = lambda: my_logger.get_datetime_file_logger(logs_root = logs_root),
         logger = my_logger.get_console_logger,
-        score_reader = score_reader_excel.ScoreReaderExcel,
+        sock = lambda logger: udp_receive.SimpleUDP(2521, logger),
         ))
+

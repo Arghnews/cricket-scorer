@@ -25,7 +25,9 @@ async def main():
 
     # I don't understand why argv doesn't go in here, but it doesn't
     #  parsed_args = parser.parse_args()
-    parsed_args, additional_args = parser.parse_known_args()
+    # args = "sender --profile sender_args_excel -s cricket.xlsx -w Sheet1"
+    args = "sender --profile sender_args_excel -s cricket.xlsx -w Sheet1".split(" ")
+    parsed_args, additional_args = parser.parse_known_args(args)
 
     print("parsed_args:", parsed_args)
     print("additional_args:", additional_args)
@@ -34,8 +36,18 @@ async def main():
 
     print("Running cricket program with mode:", mode, "profile:", profile, " args:", parsed_args)
 
+    if mode == "sender" and profile == "sender_args_excel":
+        parser2 = argparse.ArgumentParser()
+        parser2.add_argument("-s", "--spreadsheet", required = True)
+        parser2.add_argument("-w", "--worksheet", required = True)
+        res = parser2.parse_args(additional_args)
+
+    print(res)
+    print(**res)
+    res.__dict__.items()
+
     import time
-    import cricket_scorer.score_handlers.score_reader_i2c as reader
+    # import cricket_scorer.score_handlers.score_reader_i2c as reader
     import cricket_scorer.score_handlers.misc as m
 
     if mode == "sender":

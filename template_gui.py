@@ -8,18 +8,24 @@ import time
 
 import PySimpleGUI as sg
 
+from cricket_scorer.misc import params
+from cricket_scorer.net import connection
+from cricket_scorer.score_handlers import score_reader_excel
+
 # This will be either reading from the excel spreadsheet via xlwings
 # Or from the I2C ports
 # Or just prints out numbers as a dummy generator
-def score_reader_f():
+def score_reader_f(*args):
+    print("score_reader_f sender started with args:", *args)
     for num in range(1000000):
-        #  print("Getting net num", num)
-        yield num
+        # print("Getting net num", num)
+        epoch_time = int(time.time()) // 5
+        yield bytes([epoch_time % 10] * 9)
 
 # This will be the networking code function that control will be handed to that
 # will send it to the other scoreboard
-async def score_sender_func():
-    #  print("score sender started")
+async def score_sender_func(*args):
+    print("score_sender_func started with args:", *args)
     while 1:
         #  print("score sender start iter")
         val = (yield)
@@ -137,18 +143,32 @@ async def main():
             return_keyboard_events = True,
             )
 
-    score_reader = score_reader_f()
-    score_sender = score_sender_func()
+    args = params.sender_profiles["sender_args_excel"]
+    # This stinks. Must "remember" not to call args.logger() again it makes a
+    # new one and duplicates output
+    logger = args.logger()
+    make_score_sender = lambda: connection.sender_loop(logger, args)
+    score_sender = make_score_sender()
+    # score_sender = score_sender_func(args)
     await score_sender.asend(None)
 
-    last_values = None
+    # score_reader = score_reader_f()
+    # make_score_reader = score_reader_excel.score_reader_excel(logger)
+    # Initialised after inputs are given in loop
+    score_reader = None
+
+    old_score_reader_init_args = None
+
     printer = OnlyPrintOnDiff()
     _print = lambda *args, **kwargs: printer.print(*args, **kwargs)
 
+    open_reader = False
+
     while True:
-        event, values = window.read(timeout = 50)
+        event, values = window.read(timeout = 10)
         if not values["spreadsheet_selector"]:
             values["spreadsheet_selector"] = settings["spreadsheet"]
+        print(event)
 
         if event == "Save":
             #  user_settings_file["spreadsheet"] = spreadsheet
@@ -173,22 +193,35 @@ async def main():
             _print(values)
             s = set(values.keys()) & set(settings.keys())
             _print([(k, settings[k], values[k]) for k in s if values[k] != settings[k]])
-            pass
+
+            score_reader = score_reader_excel.score_reader_excel(logger, *score_reader_init_args)
+
+            try:
+                await score_sender.asend(False)
+            except StopAsyncIteration as e:
+                print("Stopped")
+            score_sender = make_score_sender()
+            await score_sender.asend(None)
 
         _print(event, values)
 
         #  _print(window.key_dict)
         #  return
 
-        score = next(score_reader)
+        score_reader_init_args = values["spreadsheet_selector"], values["sheet"]
+        # if score_reader_init_args != old_score_reader_init_args:
+            # score_reader = score_reader_f(*score_reader_init_args)
+        if score_reader is not None:
+            score = next(score_reader)
         #  score = await score_reader
         #  _print("Back in main loop", score)
-        await score_sender.asend(score)
+            await score_sender.asend(score)
+        old_score_reader_init_args = score_reader_init_args
 
         # Update gui
-        if values["spreadsheet_selector"]:
-            window["spreadsheet_text"].update(values["spreadsheet_selector"])
-            settings["spreadsheet"] = values["spreadsheet_selector"]
+        # if values["spreadsheet_selector"]:
+        window["spreadsheet_text"].update(values["spreadsheet_selector"])
+        settings["spreadsheet"] = values["spreadsheet_selector"]
         window["error_cell"].update(visible = values["enable_error_cell"])
 
         #  _print(settings)
@@ -215,7 +248,6 @@ async def main():
             #  window["sheet"].update(settings["sheet"])
 
         #  await asyncio.sleep(1)
-        last_values = values
         printer.print_contents_if_diff()
         #  printer = OnlyPrintOnDiff(printer)
     #  print("Selected file at", values["Browse"])
