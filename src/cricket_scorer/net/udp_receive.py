@@ -17,6 +17,9 @@ class SimpleUDP:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def close(self):
         self.log.info("Closing socket")
         # self.poller.unregister(self.sock)
         self.sock.close()

@@ -21,10 +21,10 @@ def score_generator(*args):
         print("Additional args received:", *args)
     score = 0
     while True:
-        if random.random() >= 0.2:
+        if random.random() >= 0.8:
             score += 1
             print("Latest score increased to", score)
-            yield int_to_bytes(score, Packet.PAYLOAD_SIZE)
+        yield int_to_bytes(score, Packet.PAYLOAD_SIZE)
 
 # Test score writer
 class ScorePrinter:

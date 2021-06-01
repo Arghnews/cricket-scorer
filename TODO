@@ -29,3 +29,13 @@ Add error cell selection
 Think of neater way to parse arguments for excel reader, probably in cricket.py if excel then parse additional
     Work out how for argparse to only parse some arguments then stop, hand off to subparser
 
+Fix argument passing in, especially log root etc.
+
+Fix GUI:
+    Saving doesn't work etc. atm
+    Timeouts, split time between GUI, network, excel reader on one thread
+
+Linting, stuff like call(a = 3) all change to call(a=3) etc.
+
+Remove micropython/esp8266 specific stuff like random number generation/socket specific stuff as we're only on raspberry pis now
+

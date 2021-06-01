@@ -43,9 +43,6 @@ class CountdownTimer:
         if started:
             self.reset()
 
-    # def valid(self):
-    #     return self._remaining_time() > 0
-
     def _remaining_time(self):
         return self._diff(self._last + self._countdown_millis, self._time_now())
 
