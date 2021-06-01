@@ -210,7 +210,10 @@ async def main():
             timer.restart()
             started = 2
         timer.start("loop")
+
+        timer.start("window.read")
         event, values = window.read(timeout = 10)
+        timer.stop("window.read")
         if values["spreadsheet_selector"]:
             values["spreadsheet"] = values["spreadsheet_selector"]
             settings["spreadsheet"] = values["spreadsheet_selector"]

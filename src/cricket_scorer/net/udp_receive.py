@@ -56,7 +56,7 @@ class SimpleUDP:
         Else returns (None, None) after the timeout expires
         """
         assert num_bytes > 0, timeout_ms >= 0
-        n = min(10, timeout_ms)
+        n = max(1, min(10, timeout_ms))
         timeout = make_countdown_timer(millis = timeout_ms / n)
         for _ in range(n):
             timeout.reset()

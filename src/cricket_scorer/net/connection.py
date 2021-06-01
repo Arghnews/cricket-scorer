@@ -233,11 +233,12 @@ async def sender_loop(log, args):
 
         while True:
 
-            #  log.debug("--")
+            # log.debug("--")
 
             # print("Packet size:", Packet.packet_size())
             packet, addr = conn.recvfrom(
-                    timeout_ms = args.receive_loop_timeout_milliseconds)
+                    timeout_ms = 0)
+                    # timeout_ms = args.receive_loop_timeout_milliseconds)
             if addr != args.receiver_ip_port and addr is not None:
                 log.warning("Received packet from", addr, "unexpected", args.receiver_ip_port)
             #  packet = Packet.from_bytes(sock.recv(Packet.packet_size(), timeout_ms = 3000))
@@ -417,8 +418,8 @@ def receiver_loop_impl(sock, log, args):
             #  #  receiver_ip_port = "192.168.4.1", 2521
             #  sender_loop(sock, params.test_sender_args)
 
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+# if __name__ == "__main__":
+#     sys.exit(main(sys.argv))
 
 # # Sender
 #         if packet is None:
