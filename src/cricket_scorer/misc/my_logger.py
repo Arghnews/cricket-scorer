@@ -33,6 +33,9 @@ class LogWrapper():
     def log(self, *args, sep=' '):
         self.logger.log(sep.join("{}".format(a) for a in args))
 
+    def setLevel(self, *args):
+        self.logger.setLevel(*args)
+
 # Something to remember, we "may" run into a space issue with logfiles over
 # time (seems unlikely but possible).
 # Consider compressing old files. Take care to make a copy of an old logfile

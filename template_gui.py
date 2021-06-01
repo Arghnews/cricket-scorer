@@ -10,7 +10,11 @@ import PySimpleGUI as sg
 
 from cricket_scorer.misc import params
 from cricket_scorer.net import connection
-from cricket_scorer.score_handlers import score_reader_excel
+from cricket_scorer.score_handlers.score_reader_excel import Reader
+
+import copy
+import ctypes
+import multiprocessing as mp
 
 # This will be either reading from the excel spreadsheet via xlwings
 # Or from the I2C ports
@@ -46,6 +50,30 @@ class OnlyPrintOnDiff:
         self.prev = contents
         self.buf = io.StringIO()
 
+class BetterTimer:
+    def __init__(self) -> None:
+        self._timers = {}
+    def restart(self):
+        self._timers.clear()
+    def start(self, name):
+        total, started = self._timers.setdefault(name, (0, -1))
+        assert started == -1, "Must be stopped before starting"
+        self._timers[name] = (total, time.time())
+    def stop(self, name):
+        assert name in self._timers
+        total, started = self._timers.get(name)
+        assert started != -1, "Must be started before stopped"
+        total += time.time() - started
+        self._timers[name] = (total, -1)
+    def running(self, name):
+        return name in self._timers and self._timers[name][1] != -1
+    def summary(self):
+        for k in self._timers:
+            if self.running(k):
+                self.stop(k)
+        for name, (t, _) in self._timers.items():
+            print(name, "->", t)
+
 async def main():
     #  sg.theme('Dark Blue 3')  # please make your creations colorful
 
@@ -63,6 +91,13 @@ async def main():
 
     user_settings_file = sg.UserSettings()
     # This seems to NEED to be called to initialise the default filename
+
+    # Printing this in a Windows 8 virtualmachine at least breaks, with module __main__ has
+    # no attribute __FILE__ - this works from a file not from a script
+    # I think the problem is elsewhere
+    # print("Using settings file:", user_settings_file.get_filename())
+    # Must set this
+    user_settings_file.set_location("cricket-scorer-cache.json")
     print("Using settings file:", user_settings_file.get_filename())
 
     settings = {
@@ -73,8 +108,7 @@ async def main():
             "wickets": "B2",
             "overs": "C2",
             "innings": "D2",
-            "error_cell": "E3",
-            "enable_error_cell": False,
+            # "serialisation_order": ["total", "wickets", "overs", "innings"],
             }
     settings.update(user_settings_file.read())
     print(settings)
@@ -91,10 +125,11 @@ async def main():
                 [sg.Text("Spreadsheet:"),
                     sg.FileBrowse(key = "spreadsheet_selector",
                         #  enable_events = True,
-                        initial_folder = settings["spreadsheet"],
+                        target = "spreadsheet",
+                        initial_folder = os.path.dirname(settings["spreadsheet"]),
                         file_types = extensions),
                     sg.Text(settings["spreadsheet"], auto_size_text = True,
-                        size = (80, 1), key = "spreadsheet_text")
+                        size = (80, 1), key = "spreadsheet")
                     ],
 
                 [sg.Text("Workbook name:"), sg.Input(settings["sheet"],
@@ -114,19 +149,21 @@ async def main():
                         size = (7, 1), key = "innings"),
                     ],
 
-                [sg.Checkbox("Enable error cell",
-                    default = settings["enable_error_cell"],
-                    key = "enable_error_cell"),
-                    #  sg.Text("Error cell:", key = "error_cell_label"),
-                    sg.Input(settings["error_cell"], size = (7, 1),
-                        key = "error_cell",
-                        visible = settings["enable_error_cell"]),
-                    ],
+                [sg.Text("", key = "error_msg")],
+                # [sg.Checkbox("Enable error cell",
+                #     default = settings["enable_error_cell"],
+                #     key = "enable_error_cell"),
+                #     #  sg.Text("Error cell:", key = "error_cell_label"),
+                #     sg.Input(settings["error_cell"], size = (7, 1),
+                #         key = "error_cell",
+                #         visible = settings["enable_error_cell"]),
+                #     ],
 
                 [sg.Button("Run", enable_events = True, key = "run"),
-                    sg.Text(size = (40, 1), auto_size_text = True,
+                    sg.Text(size = (50, 1), auto_size_text = True,
                         key = "run_label"), sg.Save()],
                 #  [sg.Button("Run/Reload", key = "reload")],
+                [sg.Button("Delete saved profile", key = "delete")],
                 [sg.Quit(pad = (5, 30))
                     ]
               ]
@@ -152,28 +189,43 @@ async def main():
     # score_sender = score_sender_func(args)
     await score_sender.asend(None)
 
+    reader = Reader(logger)
+
     # score_reader = score_reader_f()
     # make_score_reader = score_reader_excel.score_reader_excel(logger)
     # Initialised after inputs are given in loop
-    score_reader = None
-
-    old_score_reader_init_args = None
+    # score_reader = None
 
     printer = OnlyPrintOnDiff()
     _print = lambda *args, **kwargs: printer.print(*args, **kwargs)
 
-    open_reader = False
+    saved_settings = copy.deepcopy(settings)
+
+    timer = BetterTimer()
+    started = 0
 
     while True:
+        if started == 1:
+            print("Restarting timer")
+            timer.restart()
+            started = 2
+        timer.start("loop")
         event, values = window.read(timeout = 10)
-        if not values["spreadsheet_selector"]:
-            values["spreadsheet_selector"] = settings["spreadsheet"]
-        print(event)
+        if values["spreadsheet_selector"]:
+            values["spreadsheet"] = values["spreadsheet_selector"]
+            settings["spreadsheet"] = values["spreadsheet_selector"]
+
+        _print(event)
 
         if event == "Save":
             #  user_settings_file["spreadsheet"] = spreadsheet
             #  settings.pop("spreadsheet_selector", None)
-            for k, v in values.items():
+            # for k, v in values.items():
+            # for k, v in [(k, values[k]) for k in settings.keys()]:
+            for k in settings.keys():
+                if k not in values:
+                    continue
+                v = values[k]
                 if isinstance(v, str) and v:
                     settings[k] = v
                 else:
@@ -184,7 +236,10 @@ async def main():
             _print([(k, settings[k], values[k]) for k in s if values[k] != settings[k]])
 
             user_settings_file.write_new_dictionary(settings)
+            saved_settings = copy.deepcopy(settings)
+
         if event == "Quit" or event == sg.WIN_CLOSED:
+            reader.close()
             break
 
         if event == "run":
@@ -194,45 +249,56 @@ async def main():
             s = set(values.keys()) & set(settings.keys())
             _print([(k, settings[k], values[k]) for k in s if values[k] != settings[k]])
 
-            score_reader = score_reader_excel.score_reader_excel(logger, *score_reader_init_args)
+            # score_reader = score_reader_excel.score_reader_excel(logger, *score_reader_init_args)
+            # reader = Reader(logger, settings)
 
-            try:
-                await score_sender.asend(False)
-            except StopAsyncIteration as e:
-                print("Stopped")
-            score_sender = make_score_sender()
-            await score_sender.asend(None)
+            # reader.start({k: values[k] for k in settings if k in values})
+            _print("Calling reader.start with " + str(settings))
+            reader.start(settings)
+            started = 1
+
+            # try:
+            #     await score_sender.asend(False)
+            # except StopAsyncIteration as e:
+            #     print("Stopped")
+            # score_sender = make_score_sender()
+            # await score_sender.asend(None)
+
+        if event == "delete":
+            user_settings_file.delete_file()
+            saved_settings.clear()
+            pass
 
         _print(event, values)
 
-        #  _print(window.key_dict)
-        #  return
-
-        score_reader_init_args = values["spreadsheet_selector"], values["sheet"]
-        # if score_reader_init_args != old_score_reader_init_args:
-            # score_reader = score_reader_f(*score_reader_init_args)
-        if score_reader is not None:
-            score = next(score_reader)
-        #  score = await score_reader
-        #  _print("Back in main loop", score)
+        timer.start("reader")
+        if reader.started():
+            timer.start("reader.get")
+            score, error_msg = reader.get()
+            timer.stop("reader.get")
+            window["error_msg"].update(error_msg)
+            timer.start("score_sender.asend(score)")
             await score_sender.asend(score)
-        old_score_reader_init_args = score_reader_init_args
+            timer.stop("score_sender.asend(score)")
+        timer.stop("reader")
 
         # Update gui
         # if values["spreadsheet_selector"]:
-        window["spreadsheet_text"].update(values["spreadsheet_selector"])
-        settings["spreadsheet"] = values["spreadsheet_selector"]
-        window["error_cell"].update(visible = values["enable_error_cell"])
+        # window["spreadsheet_text"].update(values["spreadsheet_selector"])
+        # settings["spreadsheet"] = values["spreadsheet_selector"]
 
         #  _print(settings)
         #  _print(values)
         s = set(values.keys()) & set(settings.keys())
         _print([(k, settings[k], values[k]) for k in s if values[k] != settings[k]])
-        if any(True for k in s if values[k] != settings[k]):
+        _print("Settings:", settings)
+        _print("Values:", values)
+        if saved_settings != settings:
+        # if any(True for k in s if values[k] != settings[k]):
         #  if values != settings:
             _print("Updating")
-            window["run_label"].update("Config changed. Click Run to reload",
-                    visible = True)
+            window["run_label"].update("Config changed. Click \"Run\" to reload, "
+                                       "click \"Save\" to save", visible=True)
         else:
             _print("Not showing")
             window["run_label"].update(visible = False)
@@ -249,11 +315,15 @@ async def main():
 
         #  await asyncio.sleep(1)
         printer.print_contents_if_diff()
+        timer.stop("loop")
         #  printer = OnlyPrintOnDiff(printer)
     #  print("Selected file at", values["Browse"])
 
+    timer.summary()
+
     window.close()
 
-iol = asyncio.get_event_loop()
-iol.run_until_complete(main())
-
+if __name__ == "__main__":
+    mp.freeze_support()
+    iol = asyncio.get_event_loop()
+    iol.run_until_complete(main())
