@@ -175,14 +175,13 @@ class BaseConnection:
         #  print("got", got)
 
 class Sender:
-    def __init__(self, args):
-        # TODO: remove logger initialisation here
-        self.log = args.logger()
+    def __init__(self, logger, args):
+        self.log = logger
 
         self.log.info("\n\nSender started with params", args)
 
         self.log.debug("Initialising socket")
-        self.sock: SimpleUDP = args.sock(self.log)
+        self.sock: SimpleUDP = args.sock.sock(args.sock.port, self.log)
 
         self.log.debug("Initialising connection object")
         self.conn = BaseConnection(self.sock, self.log)
@@ -514,7 +513,7 @@ def receiver_loop_impl(sock, log, args):
         else:
             log.info("Received packet:", packet, "from", addr)
             if addr != client_addr:
-                log.info("Packet is from new address:", addr, "- old address was:", client_addr)
+                log.info("Packet is from new address:", addr,"- old address was:", client_addr)
 
         if packet is None:
             pass
