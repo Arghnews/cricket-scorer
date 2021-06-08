@@ -24,7 +24,8 @@ class SimpleUDP:
         # self.poller.unregister(self.sock)
         self.sock.close()
 
-    def __init__(self, server_port, log, host_ip_bind = "0.0.0.0"):
+    def __init__(self, log, server_port, host_ip_bind = "0.0.0.0"):
+        assert isinstance(server_port, int)
         server_addr = socket.getaddrinfo(host_ip_bind, server_port)[0][-1]
         #  client_addr = socket.getaddrinfo(client_ip, client_port)[0][-1]
         # UDP

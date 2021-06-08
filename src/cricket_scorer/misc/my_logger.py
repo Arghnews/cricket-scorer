@@ -59,10 +59,10 @@ def get_file_logger(filename):
     logger.addHandler(get_file_handler(filename, logging.DEBUG))
     return LogWrapper(logger)
 
-def get_datetime_file_logger(logs_root):
+def get_datetime_file_logger(logs_folder):
     logfile_name = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + ".log"
-    pathlib.Path(logs_root).mkdir(parents = True, exist_ok = True)
-    logfile_path = os.path.join(logs_root, logfile_name)
+    pathlib.Path(logs_folder).mkdir(parents = True, exist_ok = True)
+    logfile_path = os.path.join(logs_folder, logfile_name)
     return get_file_logger(logfile_path)
 
 def get_formatter():

@@ -175,13 +175,13 @@ class BaseConnection:
         #  print("got", got)
 
 class Sender:
-    def __init__(self, logger, args):
-        self.log = logger
+    def __init__(self, args):
+        self.log = args.logger
 
         self.log.info("\n\nSender started with params", args)
 
         self.log.debug("Initialising socket")
-        self.sock: SimpleUDP = args.sock.sock(args.sock.port, self.log)
+        self.sock: SimpleUDP = args.sock
 
         self.log.debug("Initialising connection object")
         self.conn = BaseConnection(self.sock, self.log)
@@ -475,15 +475,20 @@ class Sender:
         #  print("Received close signal, stopping sending loop")
 
 def receiver_loop(args):
-    log = args.logger()
+    log = args.logger
 
     log.info("\n\nReceiver started with params", args)
 
     log.debug("Initialising socket")
-    with args.sock(log) as sock:
-        receiver_loop_impl(sock, log, args)
+    try:
+        receiver_loop_impl(args)
+    except Exception as e:
+        args.sock.close()
+        log.error("Exception raised:", str(e))
+        raise
 
-def receiver_loop_impl(sock, log, args):
+def receiver_loop_impl(args):
+    sock, log = args.sock, args.logger
 
     log.debug("Initialising connection object")
     conn = BaseConnection(sock, log)
