@@ -2,7 +2,7 @@ import platform
 
 from . import params
 
-#  excel_enabled = platform.system() == "Windows"
+excel_enabled = platform.system() == "Windows"
 i2c_enabled = False
 
 try:
@@ -20,8 +20,9 @@ if i2c_enabled:
             score_writer_i2c_mark2_single_digit
             )
 
-#  if excel_enabled:
-    #  from cricket_scorer.score_handlers import (score_reader_excel)
+from cricket_scorer.score_handlers import score_reader_excel_dummy
+if excel_enabled:
+    from cricket_scorer.score_handlers import score_reader_excel
 
 from cricket_scorer.misc import my_logger
 from cricket_scorer.net import udp_receive
@@ -89,7 +90,7 @@ sender_profiles.add_new("test_sender_args",
         .add_new_connection_id_countdown_seconds(10)
         .add_last_received_timer_seconds(25)
         .add_resend_same_countdown_seconds(0.35)
-        .add_score_reader(misc.score_generator)
+        .add_score_reader(misc.ScoreGenerator)
         .add_logger(my_logger.get_console_logger)
         .add_sock(SENDER_LISTEN_PORT)
         )
@@ -121,7 +122,7 @@ sender_profiles.add_new_template("sender_args_base",
 if i2c_enabled:
     sender_profiles.add_based_on("sender_args_i2c", "sender_args_base",
             sender_profiles.get_profile_class()
-            .add_score_reader(score_reader_i2c.score_reader_i2c)
+            .add_score_reader(score_reader_i2c.ScoreReaderI2c)
             )
 
     sender_profiles.add_based_on("test_sender_args_i2c", "sender_args_i2c",
@@ -129,8 +130,17 @@ if i2c_enabled:
             .add_logger(my_logger.get_console_logger)
             )
 
-#  #  TODO: this probably shouldn't be a console logger only in actual
-#  if excel_enabled:
+#  TODO: this probably shouldn't be a console logger only in actual
+
+sender_profiles.add_based_on("test_sender_args_excel", "sender_args_base",
+        sender_profiles.get_profile_class()
+        .add_receive_loop_timeout_milliseconds(0)
+        .add_score_reader(score_reader_excel_dummy.get_score_reader)
+        .add_logger(my_logger.get_console_logger)
+        )
+
+if excel_enabled:
+    pass
     #  add_sender_profile("sender_args_excel",
            #  sender_profiles["_sender_args_base"]._replace(
        #  score_reader = lambda *args, **kwargs: score_reader_excel.score_reader_excel(*args, **kwargs),

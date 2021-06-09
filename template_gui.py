@@ -8,13 +8,27 @@ import time
 
 import PySimpleGUI as sg
 
-from cricket_scorer.misc import params
+from cricket_scorer.misc import profiles
 from cricket_scorer.net import connection
-from cricket_scorer.score_handlers.score_reader_excel import Reader
+from cricket_scorer.net.packet import Packet
+from cricket_scorer.score_handlers.scoredata import ScoreData
+#  from cricket_scorer.score_handlers.score_reader_excel import Reader
 
 import copy
 import ctypes
 import multiprocessing as mp
+
+from recordclass import recordclass, make_dataclass
+
+#  ScoreData = make_dataclass("ScoreData",
+        #  [("digits", int), ("cell", str), ("val", int)], defaults = (0,))
+
+#  DEFAULT_CELLS = {
+            #  "total":         ScoreData(digits = 3, cell = "A2"),
+            #  "wickets":       ScoreData(digits = 1, cell = "B2"),
+            #  "overs":         ScoreData(digits = 2, cell = "C2"),
+            #  "innings":       ScoreData(digits = 3, cell = "D2"),
+        #  }
 
 # This will be either reading from the excel spreadsheet via xlwings
 # Or from the I2C ports
@@ -103,7 +117,7 @@ async def main():
     settings = {
             "spreadsheet": r"C:\Users\justin\cricket.xlsx",
             #  "spreadsheet_selector": r"C:\Users\justin\cricket.xlsx",
-            "sheet": "Sheet1",
+            "worksheet": "Sheet1",
             "total": "A2",
             "wickets": "B2",
             "overs": "C2",
@@ -132,8 +146,8 @@ async def main():
                         size = (80, 1), key = "spreadsheet")
                     ],
 
-                [sg.Text("Workbook name:"), sg.Input(settings["sheet"],
-                    key = "sheet")
+                [sg.Text("Workbook name:"), sg.Input(settings["worksheet"],
+                    key = "worksheet")
                     ],
 
                 [sg.Text("Cell where scores live in spreadsheet:")
@@ -180,29 +194,21 @@ async def main():
             return_keyboard_events = True,
             )
 
-    args = params.sender_profiles["sender_args_excel"]
-    # This stinks. Must "remember" not to call args.logger() again it makes a
-    # new one and duplicates output
-    logger = args.logger()
-    make_score_sender = lambda: connection.sender_loop(logger, args)
-    score_sender = make_score_sender()
-    # score_sender = score_sender_func(args)
-    await score_sender.asend(None)
+    sender_profiles = profiles.sender_profiles
+    args = sender_profiles.build_profile("test_sender_args_excel")
 
-    reader = Reader(logger)
-
-    # score_reader = score_reader_f()
-    # make_score_reader = score_reader_excel.score_reader_excel(logger)
-    # Initialised after inputs are given in loop
-    # score_reader = None
+    sender_connection = connection.Sender(args)
 
     printer = OnlyPrintOnDiff()
     _print = lambda *args, **kwargs: printer.print(*args, **kwargs)
 
     saved_settings = copy.deepcopy(settings)
 
+    /home/justin/py/plyer_test/notify.py
+
     timer = BetterTimer()
     started = 0
+    scoredata = ScoreData()
 
     while True:
         if started == 1:
@@ -242,7 +248,7 @@ async def main():
             saved_settings = copy.deepcopy(settings)
 
         if event == "Quit" or event == sg.WIN_CLOSED:
-            reader.close()
+            args.score_reader.close()
             break
 
         if event == "run":
@@ -252,20 +258,9 @@ async def main():
             s = set(values.keys()) & set(settings.keys())
             _print([(k, settings[k], values[k]) for k in s if values[k] != settings[k]])
 
-            # score_reader = score_reader_excel.score_reader_excel(logger, *score_reader_init_args)
-            # reader = Reader(logger, settings)
-
-            # reader.start({k: values[k] for k in settings if k in values})
             _print("Calling reader.start with " + str(settings))
-            reader.start(settings)
+            args.score_reader.refresh_excel(*list(settings.values()))
             started = 1
-
-            # try:
-            #     await score_sender.asend(False)
-            # except StopAsyncIteration as e:
-            #     print("Stopped")
-            # score_sender = make_score_sender()
-            # await score_sender.asend(None)
 
         if event == "delete":
             user_settings_file.delete_file()
@@ -275,15 +270,16 @@ async def main():
         _print(event, values)
 
         timer.start("reader")
-        if reader.started():
-            timer.start("reader.get")
-            score, error_msg = reader.get()
-            timer.stop("reader.get")
-            window["error_msg"].update(error_msg)
-            timer.start("score_sender.asend(score)")
-            await score_sender.asend(score)
-            timer.stop("score_sender.asend(score)")
+        if started > 0:
+            old_scoredata = scoredata
+            scoredata = args.score_reader.read_score()
+            if old_scoredata != scoredata:
+                _print("New scoredata:", scoredata)
         timer.stop("reader")
+
+        timer.start("network")
+        sender_connection.poll(scoredata.score)
+        timer.stop("network")
 
         # Update gui
         # if values["spreadsheet_selector"]:

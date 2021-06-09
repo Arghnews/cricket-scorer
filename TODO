@@ -39,3 +39,11 @@ Linting, stuff like call(a = 3) all change to call(a=3) etc.
 
 Remove micropython/esp8266 specific stuff like random number generation/socket specific stuff as we're only on raspberry pis now
 
+Notify when not connected or haven't received timeout in a while
+
+	First of all, mandatory log folder, set in GUI, need logs
+	Status updates
+		- Connected or not, have received reply in reasonable time or not
+		- Maybe something about if have path to receiver, as a proxy for if
+		  connected?
+

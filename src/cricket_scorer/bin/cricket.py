@@ -42,13 +42,22 @@ def main():
     print("Running cricket program with mode:", mode, "profile:", profile_name,
             " args:", parsed_args)
 
+    #  for profile_builder in [sender_profiles, receiver_profiles]:
+        #  print("\n")
+        #  for profile_name in profile_builder.get_buildable_profile_names():
+            #  print(profile_name)
+            #  args = profile_builder.build_profile(profile_name,
+                    #  logs_folder = parsed_args.logs_folder)
+            #  print()
+    #  assert False
+
     if mode == "sender":
         args = sender_profiles.build_profile(profile_name,
                 logs_folder = parsed_args.logs_folder)
 
         print("Args:", args)
 
-        score_reader = args.score_reader(args.logger)
+        score_reader = args.score_reader
         sender_connection = connection.Sender(args)
 
         timer = countdown_timer.make_countdown_timer(seconds=1, started=True)
@@ -56,9 +65,10 @@ def main():
         while True:
             timer.sleep_till_expired()
             if timer.just_expired():
-                score = next(score_reader)
-                args.logger.info("Score read is:", score)
-                sender_connection.poll(score)
+                scoredata = score_reader.read_score()
+                args.logger.info("Score read is:", scoredata.score,
+                        scoredata.error_msg)
+                sender_connection.poll(scoredata.score)
                 timer.reset()
 
     elif mode == "receiver":

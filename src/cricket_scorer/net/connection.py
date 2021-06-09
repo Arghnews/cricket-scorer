@@ -176,147 +176,150 @@ class BaseConnection:
 
 class Sender:
     def __init__(self, args):
-        self.log = args.logger
+        self._log = args.logger
 
-        self.log.info("\n\nSender started with params", args)
+        self._log.info("\n\nSender started with params", args)
 
-        self.log.debug("Initialising socket")
-        self.sock: SimpleUDP = args.sock
+        self._log.debug("Initialising socket")
+        self._sock: SimpleUDP = args.sock
 
-        self.log.debug("Initialising connection object")
-        self.conn = BaseConnection(self.sock, self.log)
+        self._log.debug("Initialising connection object")
+        self._conn = BaseConnection(self._sock, self._log)
 
-        self.new_rx_id = Packet.UNKNOWN_ID
+        self._new_rx_id = Packet.UNKNOWN_ID
 
-        self.lookout_timer = make_countdown_timer(
+        self._lookout_timer = make_countdown_timer(
                 seconds = args.lookout_timeout_seconds, started = True)
 
-        self.new_connection_id_countdown = make_countdown_timer(
+        self._new_connection_id_countdown = make_countdown_timer(
                 seconds = args.new_connection_id_countdown_seconds,
                 started = False)
 
-        self.last_received_timer = make_countdown_timer(
+        self._last_received_timer = make_countdown_timer(
                 seconds = args.last_received_timer_seconds, started = False)
-        self.connected = False
+        self._connected = False
 
-        self.resend_same_countdown = make_countdown_timer(
+        self._resend_same_countdown = make_countdown_timer(
                 seconds = args.resend_same_countdown_seconds, started = True)
 
-        self.last_payload_sent = None
+        self._last_payload_sent = None
 
-        self.score = None
+        self._score = None
 
-        self.receiver_ip_port = args.receiver_ip_port
+        self._receiver_ip_port = args.receiver_ip_port
+
+    def is_connected(self):
+        return self._connected
 
     def _send(self):
-        assert self.score is not None, "Must poll before sending score"
-        self.log.info("Sending score:", Packet.payload_as_string(self.score))
-        self.conn.sendto(self.score, self.receiver_ip_port)
-        self.last_payload_sent = self.score
+        assert self._score is not None, "Must poll before sending score"
+        self._log.info("Sending score:", Packet.payload_as_string(self._score))
+        self._conn.sendto(self._score, self._receiver_ip_port)
+        self._last_payload_sent = self._score
 
     def poll(self, score: bytes):
-        if self.score != score:
-            old_score = self.score
-            self.score = score
+        if self._score != score:
+            old_score = self._score
+            self._score = score
 
-            self.log.info("Score changed from",
+            self._log.info("Score changed from",
                     Packet.payload_as_string(old_score)
                         if old_score is not None else "no prior score",
-                    "to", Packet.payload_as_string(self.score),
+                    "to", Packet.payload_as_string(self._score),
                     "- sending new score")
             self._send()
-            self.last_payload_sent = self.score
-            self.lookout_timer.reset()
+            self._last_payload_sent = self._score
+            self._lookout_timer.reset()
 
         while self._poll():
             pass
 
     def _poll(self):
-        packet, addr = self.conn.recvfrom(timeout_ms = 0)
-        if addr is not None and addr != self.receiver_ip_port:
-            self.log.warning("Received packet from", addr, "unexpected",
-                    self.receiver_ip_port)
+        packet, addr = self._conn.recvfrom(timeout_ms = 0)
+        if addr is not None and addr != self._receiver_ip_port:
+            self._log.warning("Received packet from", addr, "unexpected",
+                    self._receiver_ip_port)
 
         if packet is not None:
-            self.log.info("Received:", packet)
+            self._log.info("Received:", packet)
 
         # Read score would have been here
 
-        if self.new_connection_id_countdown.just_expired():
-            self.log.info("New connection reply window expired, resetting "
+        if self._new_connection_id_countdown.just_expired():
+            self._log.info("New connection reply window expired, resetting "
                     "new_rx_id")
-            self.new_rx_id = Packet.UNKNOWN_ID
-        if self.last_received_timer.just_expired():
-            self.log.info("Disconnected, received no lookout message in "
+            self._new_rx_id = Packet.UNKNOWN_ID
+        if self._last_received_timer.just_expired():
+            self._log.info("Disconnected, received no lookout message in "
                     "last_received_time")
-            self.connected = False
+            self._connected = False
             # Reset everything
-            self.conn.reset()
-            self.new_rx_id = Packet.UNKNOWN_ID
+            self._conn.reset()
+            self._new_rx_id = Packet.UNKNOWN_ID
 
 
-        if self.connected:
-            self.lookout_timer.reset()
-        elif self.lookout_timer.just_expired():
-            self.log.info("Sending lookout message")
+        if self._connected:
+            self._lookout_timer.reset()
+        elif self._lookout_timer.just_expired():
+            self._log.info("Sending lookout message")
             self._send()
-            self.lookout_timer.reset()
+            self._lookout_timer.reset()
 
         if packet is None:
             pass
-        elif packet.sender == self.conn.rx_id \
-                and packet.receiver == self.conn.my_id:
-            if packet.sequence_number >= self.conn.next_remote_seq:
-                self.last_received_timer.reset()
-                self.conn.next_remote_seq = packet.sequence_number + 1
-                self.log.info("Got good packet")
-                if packet.payload != self.score:
-                    self.log.info("Packet received contains wrong score")
+        elif packet.sender == self._conn.rx_id \
+                and packet.receiver == self._conn.my_id:
+            if packet.sequence_number >= self._conn.next_remote_seq:
+                self._last_received_timer.reset()
+                self._conn.next_remote_seq = packet.sequence_number + 1
+                self._log.info("Got good packet")
+                if packet.payload != self._score:
+                    self._log.info("Packet received contains wrong score")
                     assert type(packet.payload) is bytes and \
                             len(packet.payload) == Packet.PAYLOAD_SIZE
-                    if self.score != self.last_payload_sent or \
-                            self.resend_same_countdown.just_expired():
-                        self.log.info("Sending response data packet with new "
-                                "score", Packet.payload_as_string(self.score))
+                    if self._score != self._last_payload_sent or \
+                            self._resend_same_countdown.just_expired():
+                        self._log.info("Sending response data packet with new "
+                                "score", Packet.payload_as_string(self._score))
                         self._send()
-                        self.last_payload_sent = self.score
-                        self.resend_same_countdown.reset()
+                        self._last_payload_sent = self._score
+                        self._resend_same_countdown.reset()
                     else:
-                        self.log.info("Not sending updated score as would be "
+                        self._log.info("Not sending updated score as would be "
                         "duplicate within timeout")
             else:
-                self.log.info("Got old/duplicate packet")
+                self._log.info("Got old/duplicate packet")
 
-        elif packet.sender == self.new_rx_id \
-                and packet.receiver == self.conn.my_id \
+        elif packet.sender == self._new_rx_id \
+                and packet.receiver == self._conn.my_id \
                 and packet.id_change != Packet.UNKNOWN_ID:
-            self.conn.reset(rx_id = self.new_rx_id)
-            self.new_rx_id = Packet.UNKNOWN_ID
-            self.new_connection_id_countdown.stop()
-            self.log.info("Switching connection - new receiver:",
-                    self.conn.rx_id, "and sending score")
+            self._conn.reset(rx_id = self._new_rx_id)
+            self._new_rx_id = Packet.UNKNOWN_ID
+            self._new_connection_id_countdown.stop()
+            self._log.info("Switching connection - new receiver:",
+                    self._conn.rx_id, "and sending score")
             self._send()
-            self.connected = True
-            self.last_received_timer.reset()
-            self.last_payload_sent = None
+            self._connected = True
+            self._last_received_timer.reset()
+            self._last_payload_sent = None
 
         else:
-            if self.new_rx_id == Packet.UNKNOWN_ID:
-                self.new_connection_id_countdown.reset()
-                self.new_rx_id = gen_random(Packet.ID_SIZE,
-                        excluding = (Packet.UNKNOWN_ID, self.conn.rx_id))
-                self.log.info("Genning new rx_id", self.new_rx_id)
-            self.log.info("Responding with id_change packet to :",
-                    self.new_rx_id)
-            self.conn.send_id_change_response(packet, self.new_rx_id,
-                    self.receiver_ip_port)
-            self.last_payload_sent = None
+            if self._new_rx_id == Packet.UNKNOWN_ID:
+                self._new_connection_id_countdown.reset()
+                self._new_rx_id = gen_random(Packet.ID_SIZE,
+                        excluding = (Packet.UNKNOWN_ID, self._conn.rx_id))
+                self._log.info("Genning new rx_id", self._new_rx_id)
+            self._log.info("Responding with id_change packet to :",
+                    self._new_rx_id)
+            self._conn.send_id_change_response(packet, self._new_rx_id,
+                    self._receiver_ip_port)
+            self._last_payload_sent = None
 
         return packet is not None
 
     def __del__(self):
-        if self.sock is not None:
-            self.sock.close()
+        if self._sock is not None:
+            self._sock.close()
 
 #  async def sender_loop(log, args):
     #  # get_score_func must return bytes object of len Packet.PAYLOAD_SIZE that
@@ -508,22 +511,27 @@ def receiver_loop_impl(args):
 
         if packet is None:
             if lookout_timeout.just_expired():
-                log.debug("Nothing received and lookout timeout expired, resetting it")
+                log.debug("Nothing received and lookout timeout expired, "
+                        "resetting it")
                 lookout_timeout.reset()
                 if client_addr is not None:
                     log.info("Sending lookout message to", client_addr)
                     conn.sendto(score, client_addr)
                 else:
-                    log.debug("Not sending lookout message as no client address")
+                    log.debug("Not sending lookout message as no client "
+                            "address")
         else:
             log.info("Received packet:", packet, "from", addr)
             if addr != client_addr:
-                log.info("Packet is from new address:", addr,"- old address was:", client_addr)
+                log.info("Packet is from new address:", addr,
+                        "- old address was:", client_addr)
 
         if packet is None:
             pass
-        elif packet.sender == conn.rx_id and packet.receiver == conn.my_id \
-                and packet.id_change == Packet.UNKNOWN_ID and client_addr == addr:
+        elif packet.sender == conn.rx_id \
+                and packet.receiver == conn.my_id \
+                and packet.id_change == Packet.UNKNOWN_ID \
+                and client_addr == addr:
             if packet.sequence_number >= conn.next_remote_seq:
                 conn.next_remote_seq = packet.sequence_number + 1
                 log.info("Got good packet")
@@ -533,8 +541,8 @@ def receiver_loop_impl(args):
                     #     print("Setting wrong score for testing")
                     #     # For testing, set wrong score
                     #     score = int_to_bytes(-1, 9)
-                    log.info("Updating score to", Packet.payload_as_string(score),
-                            "and echoing/sending back")
+                    log.info("Updating score to", Packet.payload_as_string(
+                        score), "and echoing/sending back")
                     score_writer(score)
                     conn.sendto(score, addr)
                     client_addr = addr
@@ -544,7 +552,8 @@ def receiver_loop_impl(args):
             else:
                 log.info("Got old/duplicate packet")
 
-        elif packet.receiver == conn.my_id and packet.id_change != Packet.UNKNOWN_ID:
+        elif packet.receiver == conn.my_id \
+                and packet.id_change != Packet.UNKNOWN_ID:
             log.info("Changing id", conn.my_id, "->", packet.id_change,
                     "and sending id change, changing client addr to", addr)
             conn.change_and_send_connection_change(packet, addr)

@@ -55,8 +55,12 @@ class BaseProfileBuilder:
         return self
 
     def add_lookout_timeout_seconds(self, s):
+        """When on and not connected, occasionally send out messages to the
+        receiver in case it's come up to alert it that we're switched on."""
         return add_entry(self, s)
     def add_receive_loop_timeout_milliseconds(self, t):
+        """Amount of time the socket will block and listen for network
+        messages."""
         return add_entry(self, t)
 
     def build(self, logs_folder=None):
@@ -73,12 +77,25 @@ class SenderProfileBuilder(BaseProfileBuilder):
     def add_receiver_ip_port(self, ip_port):
         return add_entry(self, ip_port)
     def add_score_reader(self, reader):
-        return add_entry(self, reader)
+        self._data["score_reader"] = BuildFuncArgs(reader, {})
+        return self
     def add_new_connection_id_countdown_seconds(self, s):
+        """Timer from when receive message from new client. If don't get a
+        response within this timeout, will assume the client is switched off
+        or we received an old message."""
         return add_entry(self, s)
     def add_last_received_timer_seconds(self, s):
+        """When connected, there can be periods of little to no network
+        activity. The receiver/client should ping this sender box with lookout
+        messages to confirm it's still there, ie. it hasn't been switched off.
+        This is the timeout for how long to wait until receiving one of those
+        messages before assuming the remote end is switched off and
+        disconnecting. This should therefore be realistically at least double
+        the lookout_timeout on the receiver."""
         return add_entry(self, s)
     def add_resend_same_countdown_seconds(self, s):
+        """We use this to avoid resending the same score again in a short amount
+        of time."""
         return add_entry(self, s)
 
 class ReceiverProfileBuilder(BaseProfileBuilder):
@@ -105,14 +122,22 @@ class Args:
                     **self._data["sock"].args)
         return self._ready["sock"]
 
+    def _get_score_reader(self):
+        assert "score_reader" in self._data or "score_reader" in self._ready
+        if "score_reader" not in self._ready:
+            self._ready["score_reader"] = self._data["score_reader"].func(
+                    self._get_logger())
+        return self._ready["score_reader"]
+
     def __getattr__(self, item):
-        if item == "sock":
-            return self._get_sock()
-        elif item == "logger":
-            return self._get_logger()
-        elif item not in self._ready:
-            raise AttributeError(f"No attribute {item}")
-        return self._ready[item]
+        k = "_get_" + item
+
+        if item in self._ready:
+            return self._ready[item]
+        elif hasattr(self, k):
+            return getattr(self, k)()
+            #  return object.__getattribute__(self, k)()
+        raise AttributeError(f"No attribute {item}")
 
     def __str__(self):
         return str(self._ready) + "-" + str(self._data)
@@ -160,6 +185,10 @@ class Profiles:
         if name in self._template_profiles:
             raise RuntimeError(f"Cannot build profile \"{name}\" as it's a "
                     "template profile, only other profiles may be based off it")
+
+        if name not in self.get_buildable_profile_names():
+            raise RuntimeError(f"Profile {name} does not exist, choose from: "
+                    f"{self.get_buildable_profile_names()}")
 
         profile = self._d[name]
         print("Profile dict:", profile)

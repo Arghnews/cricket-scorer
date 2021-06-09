@@ -1,6 +1,7 @@
 import random
 
 from cricket_scorer.net.packet import Packet
+from cricket_scorer.score_handlers.scoredata import ScoreData
 
 def int_to_bytes(i, n):
     # i - integer to convert
@@ -16,15 +17,16 @@ def int_to_bytes(i, n):
     return bytes(b)
 
 # Test score reader
-def score_generator(*args):
-    if args:
-        print("Additional args received:", *args)
-    score = 0
-    while True:
+class ScoreGenerator:
+    def __init__(self, *args):
+        if args:
+            print("Additional args received:", *args)
+        self.score = 0
+    def read_score(self):
         if random.random() >= 0.8:
-            score += 1
-            print("Latest score increased to", score)
-        yield int_to_bytes(score, Packet.PAYLOAD_SIZE)
+            self.score += 1
+            print("Latest score increased to", self.score)
+        return ScoreData(score=int_to_bytes(self.score, Packet.PAYLOAD_SIZE))
 
 # Test score writer
 class ScorePrinter:
