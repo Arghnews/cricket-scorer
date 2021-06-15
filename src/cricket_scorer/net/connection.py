@@ -83,7 +83,7 @@ class BaseConnection:
         if my_id is None:
             my_id = gen_random(Packet.ID_SIZE, excluding = Packet.UNKNOWN_ID)
 
-        self.sock = sock
+        self.sock: SimpleUDP = sock
         self.my_id = my_id
         self.rx_id = rx_id
         self.next_remote_seq = next_remote_seq
@@ -316,10 +316,6 @@ class Sender:
             self._last_payload_sent = None
 
         return packet is not None
-
-    def __del__(self):
-        if self._sock is not None:
-            self._sock.close()
 
 #  async def sender_loop(log, args):
     #  # get_score_func must return bytes object of len Packet.PAYLOAD_SIZE that

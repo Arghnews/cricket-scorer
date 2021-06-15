@@ -1,37 +1,29 @@
-import platform
-
 from . import params
 
-excel_enabled = platform.system() == "Windows"
-i2c_enabled = False
-
-try:
-    from smbus2 import SMBus
-    i2c_enabled = True
-except Exception:
-    i2c_enabled = False
+import cricket_scorer.misc.my_platform as my_platform
 
 import cricket_scorer.score_handlers
 from cricket_scorer.score_handlers import misc
 
-if i2c_enabled:
+if my_platform.I2C_ENABLED:
     from cricket_scorer.score_handlers import (score_reader_i2c,
             score_writer_i2c_mark1, score_writer_i2c_mark2,
             score_writer_i2c_mark2_single_digit
             )
 
 from cricket_scorer.score_handlers import score_reader_excel_dummy
-if excel_enabled:
+if my_platform.EXCEL_ENABLED:
     from cricket_scorer.score_handlers import score_reader_excel
 
 from cricket_scorer.misc import my_logger
 from cricket_scorer.net import udp_receive
 
-sender_profiles = params.Profiles(params.SenderProfileBuilder)
-receiver_profiles = params.Profiles(params.ReceiverProfileBuilder)
+sender_profiles = params.SenderProfiles(params.SenderProfileBuilder)
+receiver_profiles = params.ReceiverProfiles(params.ReceiverProfileBuilder)
 
 LOGS_FOLDER_RASPBERRY_PI = "/home/pi/cricket_scorer/logs"
 RECEIVER_LISTEN_PORT = 2520
+RECEIVER_IP = "192.168.4.1"
 
 # Relatively unimportant as receiver responds to sender address including port
 SENDER_LISTEN_PORT = 2521
@@ -45,7 +37,7 @@ receiver_profiles.add_new("test_receiver_args",
         .add_sock(RECEIVER_LISTEN_PORT)
         )
 
-if i2c_enabled:
+if my_platform.I2C_ENABLED:
     receiver_profiles.add_new("receiver_args_mark2",
             receiver_profiles.get_profile_class()
             .add_lookout_timeout_seconds(20)
@@ -107,7 +99,7 @@ sender_profiles.add_based_on("test_sender_args_wifi", "test_sender_args",
 
 sender_profiles.add_new_template("sender_args_base",
         sender_profiles.get_profile_class()
-        .add_receiver_ip_port(("192.168.4.1", RECEIVER_LISTEN_PORT))
+        .add_receiver_ip_port((RECEIVER_IP, RECEIVER_LISTEN_PORT))
         .add_lookout_timeout_seconds(10)
         .add_receive_loop_timeout_milliseconds(2000)
         .add_new_connection_id_countdown_seconds(10)
@@ -119,7 +111,7 @@ sender_profiles.add_new_template("sender_args_base",
         .add_sock(SENDER_LISTEN_PORT)
         )
 
-if i2c_enabled:
+if my_platform.I2C_ENABLED:
     sender_profiles.add_based_on("sender_args_i2c", "sender_args_base",
             sender_profiles.get_profile_class()
             .add_score_reader(score_reader_i2c.ScoreReaderI2c)
@@ -134,29 +126,20 @@ if i2c_enabled:
 
 sender_profiles.add_based_on("test_sender_args_excel", "sender_args_base",
         sender_profiles.get_profile_class()
+        .add_receiver_ip_port(("127.0.0.1", RECEIVER_LISTEN_PORT))
         .add_receive_loop_timeout_milliseconds(0)
+        .add_last_received_timer_seconds(35)
         .add_score_reader(score_reader_excel_dummy.get_score_reader)
         .add_logger(my_logger.get_console_logger)
         )
 
-if excel_enabled:
-    pass
-    #  add_sender_profile("sender_args_excel",
-           #  sender_profiles["_sender_args_base"]._replace(
-       #  score_reader = lambda *args, **kwargs: score_reader_excel.score_reader_excel(*args, **kwargs),
-       #  ))
-    #  add_sender_profile("sender_args_excel", SenderArgs(
-        #  receiver_ip_port = ("192.168.4.1", 2520),
-        #  lookout_timeout_seconds = 10,
-        #  receive_loop_timeout_milliseconds = 20,
-        #  new_connection_id_countdown_seconds = 10,
-        #  last_received_timer_seconds = 45,
-        #  resend_same_countdown_seconds = 0.5,
-        #  # score_reader = None,
-        #  score_reader = lambda *args, **kwargs: score_reader_excel.score_reader_excel(
-            #  *args, **kwargs),
-        #  # logger = lambda: my_logger.get_datetime_file_logger(logs_root = logs_root),
-        #  logger = my_logger.get_console_logger,
-        #  sock = lambda logger: udp_receive.SimpleUDP(SENDER_LISTEN_PORT, logger),
-        #  ))
+sender_profiles.add_based_on("test_sender_args_excel_remote_ip", "test_sender_args_excel",
+        sender_profiles.get_profile_class()
+        .add_receiver_ip_port((RECEIVER_IP, RECEIVER_LISTEN_PORT))
+        )
 
+if my_platform.EXCEL_ENABLED:
+        sender_profiles.add_based_on("test_sender_args_actual_excel", "test_sender_args_excel",
+                sender_profiles.get_profile_class()
+                .add_score_reader(score_reader_excel.get_score_reader)
+                )

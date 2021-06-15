@@ -47,3 +47,20 @@ Notify when not connected or haven't received timeout in a while
 		- Maybe something about if have path to receiver, as a proxy for if
 		  connected?
 
+Test the new select stuff with ubuntu and raspberry pis
+Handle windows specific errors, and any linux/pi specific stuff too
+
+Accept button on disconnect notify
+
+Fix receive timeouts for receiver now we poll it in a loop
+
+Fix gui logging it's a disgrace
+
+singleton - using stackoverflow suggestion, check if something is using the
+SENDER_LISTEN_PORT 2521, so can notify if program already running
+
+GUI notify changed settings and need to reload
+
+GUI logging window to read logfile live (tail -f type)
+
+GUI rearrange to make it actually nice

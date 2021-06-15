@@ -1,34 +1,20 @@
 #!/usr/bin/env python3
 
-import asyncio
+import copy
 import io
+import multiprocessing
 import os
-
+import sys
 import time
+import types
+import typing
 
 import PySimpleGUI as sg
+import plyer
 
 from cricket_scorer.misc import profiles
 from cricket_scorer.net import connection
-from cricket_scorer.net.packet import Packet
 from cricket_scorer.score_handlers.scoredata import ScoreData
-#  from cricket_scorer.score_handlers.score_reader_excel import Reader
-
-import copy
-import ctypes
-import multiprocessing as mp
-
-from recordclass import recordclass, make_dataclass
-
-#  ScoreData = make_dataclass("ScoreData",
-        #  [("digits", int), ("cell", str), ("val", int)], defaults = (0,))
-
-#  DEFAULT_CELLS = {
-            #  "total":         ScoreData(digits = 3, cell = "A2"),
-            #  "wickets":       ScoreData(digits = 1, cell = "B2"),
-            #  "overs":         ScoreData(digits = 2, cell = "C2"),
-            #  "innings":       ScoreData(digits = 3, cell = "D2"),
-        #  }
 
 # This will be either reading from the excel spreadsheet via xlwings
 # Or from the I2C ports
@@ -88,8 +74,17 @@ class BetterTimer:
         for name, (t, _) in self._timers.items():
             print(name, "->", t)
 
-async def main():
-    #  sg.theme('Dark Blue 3')  # please make your creations colorful
+def notify_disconnected(title, message, timeout = 15):
+
+    plyer.notification.notify(
+    title = title,
+    message = message,
+    timeout = timeout,
+    )
+
+def main():
+
+    sg.theme('Dark Blue 3')  # please make your creations colorful
 
     initial = os.path.dirname(os.path.realpath(__file__))
 
@@ -114,20 +109,62 @@ async def main():
     user_settings_file.set_location("cricket-scorer-cache.json")
     print("Using settings file:", user_settings_file.get_filename())
 
-    settings = {
-            "spreadsheet": r"C:\Users\justin\cricket.xlsx",
-            #  "spreadsheet_selector": r"C:\Users\justin\cricket.xlsx",
+    keys = {
+            "spreadsheet_path": r"C:\Users\example\path\to\cricket.xlsx",
             "worksheet": "Sheet1",
             "total": "A2",
             "wickets": "B2",
             "overs": "C2",
             "innings": "D2",
-            # "serialisation_order": ["total", "wickets", "overs", "innings"],
-            }
-    settings.update(user_settings_file.read())
-    print(settings)
+            "logs_folder": "",
+            # TODO: change this to live
+            "profile": "test_sender_args_excel",
+    }
 
-    layout = [
+    settings = dict.fromkeys(keys, "")
+    saved_settings = {}
+
+    if user_settings_file.exists():
+        saved_settings.update(user_settings_file.read())
+    else:
+        print(f"No settings file at {user_settings_file.get_filename()}")
+        settings.update(keys)
+
+    if set(saved_settings.keys()) != set(keys):
+        try:
+            user_settings_file.delete_file()
+        except Exception as e:
+            print(f"Error deleting user settings file {user_settings_file.get_filename()}",
+                  file=sys.stderr)
+        saved_settings.clear()
+
+    settings.update(saved_settings)
+
+    sender_profiles = profiles.sender_profiles
+
+    profile_names = sender_profiles.get_buildable_profile_names()
+    profiles_listbox = [sg.Listbox(
+        profile_names,
+        default_values=[settings["profile"]],
+        # [sender_profiles.get_buildable_profile_names()],
+        size=(max(map(len, profile_names)), len(profile_names)),
+        select_mode=sg.LISTBOX_SELECT_MODE_SINGLE,
+        enable_events=True,
+        key="profile",
+    )]
+
+    # settings = {
+    #         "spreadsheet_path": r"",
+    #         #  "spreadsheet_selector": r"C:\Users\justin\cricket.xlsx",
+    #         "worksheet": "Sheet1",
+    #         "total": "A2",
+    #         "wickets": "B2",
+    #         "overs": "C2",
+    #         "innings": "D2",
+    #         "logs_folder": "",
+    #         # "serialisation_order": ["total", "wickets", "overs", "innings"],
+    #         }
+    layout1 = [
                 #  [sg.Text('Spreadsheet')
                     #  ],
 
@@ -139,14 +176,18 @@ async def main():
                 [sg.Text("Spreadsheet:"),
                     sg.FileBrowse(key = "spreadsheet_selector",
                         #  enable_events = True,
-                        target = "spreadsheet",
-                        initial_folder = os.path.dirname(settings["spreadsheet"]),
-                        file_types = extensions),
-                    sg.Text(settings["spreadsheet"], auto_size_text = True,
-                        size = (80, 1), key = "spreadsheet")
+                        target = "spreadsheet_path",
+                        initial_folder=os.path.dirname(settings["spreadsheet_path"]),
+                        # initial_folder = "",
+                        # size=(30, 1),
+                        file_types=extensions),
+                    sg.Text(settings["spreadsheet_path"], auto_size_text = True,
+                        size = (120, 1),
+                        key = "spreadsheet_path")
                     ],
 
-                [sg.Text("Workbook name:"), sg.Input(settings["worksheet"],
+                # [sg.Text("Workbook name:"), sg.Input(settings["worksheet"],
+                [sg.Text("Worksheet name:"), sg.Input(settings["worksheet"],
                     key = "worksheet")
                     ],
 
@@ -154,16 +195,32 @@ async def main():
                     ],
                 [
                     sg.Text("Total:"), sg.Input(settings["total"],
-                        size = (7, 1), key = "total"),
+                        size = (9, 1), key = "total"),
                     sg.Text("Wickets:"), sg.Input(settings["wickets"],
-                        size = (7, 1), key = "wickets"),
+                        size = (9, 1), key = "wickets"),
                     sg.Text("Overs:"), sg.Input(settings["overs"],
-                        size = (7, 1), key = "overs"),
+                        size = (9, 1), key = "overs"),
                     sg.Text("1st Innings:"), sg.Input(settings["innings"],
-                        size = (7, 1), key = "innings"),
+                        size = (9, 1), key = "innings"),
                     ],
 
-                [sg.Text("", key = "error_msg")],
+                [sg.Text("Logs folder:"),
+                    sg.FolderBrowse(key = "logs_folder_selector",
+                        #  enable_events = True,
+                        target = "logs_folder_selected",
+                        initial_folder=(settings["logs_folder"]),
+                    ),
+                        # initial_folder = "",
+                        # size=(30, 1),
+                    sg.Text(settings["logs_folder"], auto_size_text = True,
+                        size = (120, 1),
+                        key = "logs_folder_selected")
+                    ],
+
+            [sg.Button("Delete saved settings", key = "delete_saved_settings")],
+            [sg.Text("Settings cache file:"),
+                sg.Text(user_settings_file.get_filename())],
+
                 # [sg.Checkbox("Enable error cell",
                 #     default = settings["enable_error_cell"],
                 #     key = "enable_error_cell"),
@@ -173,14 +230,49 @@ async def main():
                 #         visible = settings["enable_error_cell"]),
                 #     ],
 
+                profiles_listbox,
                 [sg.Button("Run", enable_events = True, key = "run"),
                     sg.Text(size = (50, 1), auto_size_text = True,
-                        key = "run_label"), sg.Save()],
+                        key = "run_label")],
+                [sg.Save(key="Save")],
                 #  [sg.Button("Run/Reload", key = "reload")],
-                [sg.Button("Delete saved profile", key = "delete")],
-                [sg.Quit(pad = (5, 30))
-                    ]
+                [sg.Quit("Save & Quit", pad = (5, 30), key="save_and_quit")],
+                [sg.Quit("Quit without saving settings", pad=(
+                    5, 30), key="quit_without_saving")],
               ]
+
+    layout2 = [
+        [sg.Text("hi"), sg.Text("there")],
+        # sg.Sizegrip(),
+    ]
+
+    status_text_format_warning_initial = {
+        "font": ("arial", 24),
+        "relief": sg.RELIEF_SUNKEN,
+        "pad": (10, 10),
+        "text_color": "black",
+        "background_color": "red",
+    }
+
+    layout3 = [
+            [
+                sg.Text("Not running", key="is_running",
+                        **status_text_format_warning_initial),
+                sg.Text("Not connected", key="is_connected",
+                        **status_text_format_warning_initial),
+                sg.Text("Settings have changed, click \"Save\"to save",
+                        key="settings_changed")
+            ],
+    ]
+
+    layout = [
+        [sg.Frame("Status", layout3)],
+        [sg.Frame("My frame here", layout1)],
+        [sg.Frame("Frame 2", layout2)],
+        [sg.Sizegrip()],
+    ]
+
+    # layout[-1].append(sg.Sizegrip())
 
     #  layout = [[sg.FileBrowse(initial_folder = initial, file_types = extensions)]]
 
@@ -190,39 +282,87 @@ async def main():
 
     window = sg.Window('Cricket Scorer - Spreadsheet selector', layout,
             finalize = True,
-            size = (800, 600),
+            # size = (800, 600),
             return_keyboard_events = True,
+            resizable=True,
             )
+    window.set_min_size((640, 480))
 
-    sender_profiles = profiles.sender_profiles
-    args = sender_profiles.build_profile("test_sender_args_excel")
+    # args = sender_profiles.build_profile(settings["profile"])
 
-    sender_connection = connection.Sender(args)
+    # print("Arguments from profile used:", args)
+
+    # sender_connection = connection.Sender(args)
+
+    # printer = OnlyPrintOnDiff()
+    # _print = lambda *args, **kwargs: printer.print(*args, **kwargs)
+    # _print = lambda *args, **kwargs: None
+
+    # /home/justin/py/plyer_test/notify.py
+
+    # timer = BetterTimer()
+    # started = 0
+    scoredata = ScoreData()
+    # connected = False
+    # running = False
+    # running_settings: typing.Union[None, dict] = None
+
+    # still_going = True
+    # my_settings = {}
+    # ret = "CONTINUE"
+    # while ret == "CONTINUE":
+
+    state = types.SimpleNamespace(timer=BetterTimer(), started=0, running=False,
+                            connected=False)
+
+    while True:
+        with sender_profiles.build_profile(settings["profile"]) as args:
+            print("Arguments from profile used:", args)
+            sender_connection = connection.Sender(args)
+            if loop(window, args, sender_connection, state,
+                settings, saved_settings, user_settings_file,
+                scoredata):
+                break
+
+    state.timer.summary()
+
+    window.close()
+
+# TODO: yes
+def loop(window, args, sender_connection, state,
+         settings, saved_settings, user_settings_file,
+         scoredata):
+
+    done = False
+    status_text_format_ok = {"background_color": "green"}
+    status_text_format_warning = {"background_color": "red"}
 
     printer = OnlyPrintOnDiff()
     _print = lambda *args, **kwargs: printer.print(*args, **kwargs)
 
-    saved_settings = copy.deepcopy(settings)
-
-    /home/justin/py/plyer_test/notify.py
-
-    timer = BetterTimer()
-    started = 0
-    scoredata = ScoreData()
-
+    state.timer.start("loop")
     while True:
-        if started == 1:
+        _print()
+        if state.started == 1:
             print("Restarting timer")
-            timer.restart()
-            started = 2
-        timer.start("loop")
+            state.timer.restart()
+            state.started = 2
 
-        timer.start("window.read")
+        if state.running:
+            window["is_running"].update(**status_text_format_ok)
+        else:
+            window["is_running"].update(**status_text_format_warning)
+        if state.connected:
+            window["is_connected"].update(**status_text_format_ok)
+        else:
+            window["is_connected"].update(**status_text_format_warning)
+
+        state.timer.start("window.read")
         event, values = window.read(timeout = 10)
-        timer.stop("window.read")
-        if values["spreadsheet_selector"]:
-            values["spreadsheet"] = values["spreadsheet_selector"]
-            settings["spreadsheet"] = values["spreadsheet_selector"]
+        state.timer.stop("window.read")
+        # if values["spreadsheet_selector"]:
+        #     values["spreadsheet"] = values["spreadsheet_selector"]
+        #     settings["spreadsheet"] = values["spreadsheet_selector"]
 
         _print(event)
 
@@ -231,14 +371,14 @@ async def main():
             #  settings.pop("spreadsheet_selector", None)
             # for k, v in values.items():
             # for k, v in [(k, values[k]) for k in settings.keys()]:
-            for k in settings.keys():
-                if k not in values:
-                    continue
-                v = values[k]
-                if isinstance(v, str) and v:
-                    settings[k] = v
-                else:
-                    settings[k] = v
+            # for k in settings.keys():
+            #     if k not in values:
+            #         continue
+            #     v = values[k]
+            #     if isinstance(v, str) and v:
+            #         settings[k] = v
+            #     else:
+            #         settings[k] = v
             _print("Saving settings", settings)
 
             s = set(values.keys()) & set(settings.keys())
@@ -247,8 +387,15 @@ async def main():
             user_settings_file.write_new_dictionary(settings)
             saved_settings = copy.deepcopy(settings)
 
-        if event == "Quit" or event == sg.WIN_CLOSED:
-            args.score_reader.close()
+        if event == "save_and_quit" or event == sg.WIN_CLOSED:
+            print(args.score_reader)
+            print(type(args.score_reader))
+            user_settings_file.write_new_dictionary(settings)
+            done = True
+            break
+
+        if event == "quit_without_saving":
+            done = True
             break
 
         if event == "run":
@@ -259,27 +406,95 @@ async def main():
             _print([(k, settings[k], values[k]) for k in s if values[k] != settings[k]])
 
             _print("Calling reader.start with " + str(settings))
-            args.score_reader.refresh_excel(*list(settings.values()))
-            started = 1
 
-        if event == "delete":
+            # if running_settings is not None \
+            #         and settings["profile"] != running_settings["profile"]:
+
+            #     # Feels messy
+            #     sender_connection = None
+            #     args = None
+
+            #     args = sender_profiles.build_profile(settings["profile"])
+            #     sender_connection = connection.Sender(args)
+
+            state.running = True
+
+            args.score_reader.refresh_excel(settings["spreadsheet_path"],
+                            settings["worksheet"], settings["total"],
+                            settings["wickets"], settings["overs"],
+                            settings["innings"])
+            # args.score_reader.refresh_excel(*list(settings.values()))
+            state.started = 1
+            # running_settings = copy.deepcopy(settings)
+
+            # Convert Args to typing.ContextManager?
+            # can simplify init stuff?
+            # have this be a function, parameters including args and sender_connection
+            # can make sure to close them cleanly
+            # context managers more?
+            # Need to properly consider, and handle closing of stuff now
+
+        if event == "delete_saved_settings":
             user_settings_file.delete_file()
             saved_settings.clear()
+            print("Deleting cached file")
             pass
 
-        _print(event, values)
+        _print("Event, values:", event, values)
+        _print(window["spreadsheet_path"])
 
-        timer.start("reader")
-        if started > 0:
+        for k, v in values.items():
+            if k == "spreadsheet_selector":
+                if v:
+                    settings["spreadsheet_path"] = v
+            elif k == "logs_folder_selector":
+                if v:
+                    settings["logs_folder"] = v
+            elif k == "profile":
+                if v:
+                    assert isinstance(v, list)
+                    assert len(v) == 1
+                    settings["profile"] = v[0]
+            elif k in settings:
+                settings[k] = v
+            else:
+                assert False, f"Unhandled value in gui values \"{k}\": \"{v}\""
+
+        state.timer.start("reader")
+        if state.started > 0:
             old_scoredata = scoredata
             scoredata = args.score_reader.read_score()
             if old_scoredata != scoredata:
                 _print("New scoredata:", scoredata)
-        timer.stop("reader")
+        state.timer.stop("reader")
 
-        timer.start("network")
-        sender_connection.poll(scoredata.score)
-        timer.stop("network")
+        state.timer.start("network poll")
+        if state.started > 0:
+            sender_connection.poll(scoredata.score)
+        state.timer.stop("network poll")
+
+        if sender_connection.is_connected():
+            state.connected = True
+            window["is_connected"].update("Connected")
+        else:
+            window["is_connected"].update("Not connected")
+            if state.connected:
+                state.connected = False
+                state.timer.start("desktop notify disconnect")
+                notify_disconnected("cricket-scorer disconnected",
+                                    "cricket-scorer has lost connection")
+                state.timer.stop("desktop notify disconnect")
+
+        if state.running:
+            window["is_running"].update("Running")
+        else:
+            window["is_running"].update("Not running")
+
+        if settings != saved_settings:
+            window["run_label"].update("Config changed. Click \"Run\" to reload, "
+                                        "click \"Save\" to save", visible=True)
+        else:
+            window["run_label"].update(visible=False)
 
         # Update gui
         # if values["spreadsheet_selector"]:
@@ -291,16 +506,16 @@ async def main():
         s = set(values.keys()) & set(settings.keys())
         _print([(k, settings[k], values[k]) for k in s if values[k] != settings[k]])
         _print("Settings:", settings)
+        _print("Saved settings:", saved_settings)
         _print("Values:", values)
-        if saved_settings != settings:
+        # if saved_settings != settings:
         # if any(True for k in s if values[k] != settings[k]):
         #  if values != settings:
-            _print("Updating")
-            window["run_label"].update("Config changed. Click \"Run\" to reload, "
-                                       "click \"Save\" to save", visible=True)
-        else:
-            _print("Not showing")
-            window["run_label"].update(visible = False)
+        _print("Updating")
+
+        # else:
+            # _print("Not showing")
+            # window["run_label"].update(visible = False)
 
         #  if values == last_values:
             #  continue
@@ -312,17 +527,13 @@ async def main():
             #  #  _print("spreadsheet now:", spreadsheet)
             #  window["sheet"].update(settings["sheet"])
 
-        #  await asyncio.sleep(1)
         printer.print_contents_if_diff()
-        timer.stop("loop")
         #  printer = OnlyPrintOnDiff(printer)
     #  print("Selected file at", values["Browse"])
 
-    timer.summary()
-
-    window.close()
+    state.timer.stop("loop")
+    return done
 
 if __name__ == "__main__":
-    mp.freeze_support()
-    iol = asyncio.get_event_loop()
-    iol.run_until_complete(main())
+    multiprocessing.freeze_support()
+    sys.exit(main())

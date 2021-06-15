@@ -22,11 +22,15 @@ class ScoreGenerator:
         if args:
             print("Additional args received:", *args)
         self.score = 0
+    def refresh_excel(self, *args, **kwargs):
+        pass
     def read_score(self):
         if random.random() >= 0.8:
             self.score += 1
             print("Latest score increased to", self.score)
         return ScoreData(score=int_to_bytes(self.score, Packet.PAYLOAD_SIZE))
+    def close(self):
+        pass
 
 # Test score writer
 class ScorePrinter:

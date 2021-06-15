@@ -1,5 +1,6 @@
 import copy
 import itertools
+import sys
 
 from recordclass import make_dataclass
 
@@ -10,6 +11,8 @@ ScoreData = make_dataclass("ScoreData",
         [("digits", int), ("cell", str), ("val", int)], defaults = (0,))
 
 # If able to assume using python 3.6+ (technically 3.7+) then no need for this extra order
+# Cpython impl detail as of 3.6. Required as of 3.7. We assert this for now
+assert sys.version_info.major >= 3 and sys.version_info.minor >= 6
 SERIALISATION_ORDER = ["total", "wickets", "overs", "innings"]
 
 DEFAULT_CELLS = {

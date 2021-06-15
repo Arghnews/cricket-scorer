@@ -1,7 +1,6 @@
 import copy
 import collections
 import inspect
-import platform
 import typing
 
 from cricket_scorer.misc import my_logger
@@ -63,13 +62,13 @@ class BaseProfileBuilder:
         messages."""
         return add_entry(self, t)
 
-    def build(self, logs_folder=None):
+    def build(self, args_class, logs_folder=None):
         for k, v in self._simple_data.items():
             assert v is not None, f"Value must be supplied for key {k}"
         if logs_folder is not None:
             assert self._data["logger"].func is not my_logger.get_console_logger
             self._data["logger"].args["logs_folder"] = logs_folder
-        return Args(self._simple_data, self._data)
+        return args_class(self._simple_data, self._data)
 
 class SenderProfileBuilder(BaseProfileBuilder):
     def __init__(self):
@@ -105,42 +104,61 @@ class ReceiverProfileBuilder(BaseProfileBuilder):
         return add_entry(self, writer)
 
 class Args:
+    # Potential TODO: add check to ensure opened by "with" statement
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if "sock" in self._ready:
+            self.sock.close()
+
     def __init__(self, simple_data: dict,
             data: typing.Dict[str, BuildFuncArgs]):
         self._data = data
         self._ready = simple_data
 
-    def _get_logger(self):
+    @property
+    def logger(self):
         if "logger" not in self._ready:
             self._ready["logger"] = self._data["logger"].func(
                     **self._data["logger"].args)
         return self._ready["logger"]
 
-    def _get_sock(self):
+    @property
+    def sock(self):
         if "sock" not in self._ready:
-            self._ready["sock"] = self._data["sock"].func(self._get_logger(),
+            self._ready["sock"] = self._data["sock"].func(self.logger,
                     **self._data["sock"].args)
         return self._ready["sock"]
 
-    def _get_score_reader(self):
-        assert "score_reader" in self._data or "score_reader" in self._ready
-        if "score_reader" not in self._ready:
-            self._ready["score_reader"] = self._data["score_reader"].func(
-                    self._get_logger())
-        return self._ready["score_reader"]
-
     def __getattr__(self, item):
-        k = "_get_" + item
-
         if item in self._ready:
             return self._ready[item]
-        elif hasattr(self, k):
-            return getattr(self, k)()
-            #  return object.__getattribute__(self, k)()
+        if item in self._data:
+            return getattr(self, item)
         raise AttributeError(f"No attribute {item}")
 
     def __str__(self):
         return str(self._ready) + "-" + str(self._data)
+
+class SenderArgs(Args):
+    def __init__(self, simple_data: dict, data: typing.Dict[str, BuildFuncArgs]):
+        super().__init__(simple_data, data)
+    @property
+    def score_reader(self):
+        assert "score_reader" in self._data or "score_reader" in self._ready
+        if "score_reader" not in self._ready:
+            self._ready["score_reader"] = self._data["score_reader"].func(
+                    self.logger)
+        return self._ready["score_reader"]
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if "score_reader" in self._ready and hasattr(self.score_reader, "close"):
+            self.score_reader.close()
+        return super().__exit__(exc_type, exc_value, exc_traceback)
+
+class ReceiverArgs(Args):
+    def __init__(self, simple_data: dict, data: typing.Dict[str, BuildFuncArgs]):
+        super().__init__(simple_data, data)
 
 class Profiles:
     def __init__(self, profile_type_class):
@@ -181,7 +199,7 @@ class Profiles:
         self._template_profiles.add(name)
         return self.add_new(name, profile)
 
-    def build_profile(self, name, **kwargs):
+    def _build_profile(self, args_class, name, **kwargs):
         if name in self._template_profiles:
             raise RuntimeError(f"Cannot build profile \"{name}\" as it's a "
                     "template profile, only other profiles may be based off it")
@@ -192,83 +210,16 @@ class Profiles:
 
         profile = self._d[name]
         print("Profile dict:", profile)
-        return profile.build(**kwargs)
+        return profile.build(args_class, **kwargs)
 
-        # Parameters.REQUIRED must be filled from kwargs -
-        # Must use all params from kwargs
-        # Must not be ambiguity
-        # Overwriting of params
+class SenderProfiles(Profiles):
+    def __init__(self, profile_type_class):
+        super().__init__(profile_type_class)
+    def build_profile(self, name, **kwargs):
+        return super()._build_profile(SenderArgs, name, **kwargs)
 
-        #  duplicates = []
-        #  for k, d in profile.items():
-            #  single_param = len(d) == 1 and k in d
-            #  if single_param:
-                #  duplicates.append(k)
-            #  else:
-                #  duplicates.extend(k + "_" + kk for kk in d.keys())
-
-        #  duplicates = {x for x in duplicates if duplicates.count(x) > 1}
-        #  if duplicates:
-            #  raise RuntimeError("Keys in a profile must be unique, multiple "
-                    #  f"entries for: {duplicates}")
-
-        #  d2 = {}
-        #  for k, d in profile.items():
-            #  print(k, d)
-            #  single_param = len(d) == 1 and k in d
-            #  not_provided_keys = []
-
-            #  for kk, v in d.items():
-                #  key = k + "_" + kk
-                #  if key not in kwargs:
-                    #  if v == Parameters.REQUIRED:
-                        #  raise RuntimeError(f"Parameter {key} required but "
-                                #  "not provided")
-                    #  elif v == Parameters.NOT_PROVIDED:
-                        #  not_provided_keys.append(kk)
-                #  else:
-                    #  print("waargh", kk, key)
-                    #  d[kk] = kwargs[key]
-                    #  print(d)
-                    #  del kwargs[key]
-
-            #  for kk in not_provided_keys:
-                #  del d[kk]
-
-            #  d2[k] = d
-            #  if single_param:
-                #  d2.update(d)
-            #  else:
-                #  if k == "logger":
-                    #  print(d)
-                    #  print("--")
-                #  tup = namedtuple(k, d.keys())
-                #  print("tup", tup)
-                #  d2[k] = tup(**d)
-
-        #  if len(kwargs) > 0:
-            #  raise RuntimeError(f"Unused arguments: {kwargs}")
-
-        #  print(d2)
-        #  assert False
-
-        #  required_params = {k for k, v in dd.items() if v is Parameters.REQUIRED}
-        #  given_params = set(kwargs.keys())
-
-        #  missing_params = required_params - given_params
-        #  redundant_params = given_params - required_params
-
-        #  if missing_params:
-            #  raise RuntimeError(f"These parameters must be specified: "
-                    #  f"{missing_params}")
-
-        #  if redundant_params:
-            #  raise RuntimeError(f"Redundant extra parameters: "
-                    #  f"{redundant_params}")
-
-        #  for k in [k for k, v in dd.items() if v == Parameters.NOT_PROVIDED]:
-            #  del dd[k]
-
-        #  return Args(**d2)
-        #  return types.SimpleNamespace(**d2)
-
+class ReceiverProfiles(Profiles):
+    def __init__(self, profile_type_class):
+        super().__init__(profile_type_class)
+    def build_profile(self, name, **kwargs):
+        return super()._build_profile(ReceiverArgs, name, **kwargs)
