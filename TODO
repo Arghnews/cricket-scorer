@@ -64,3 +64,16 @@ GUI notify changed settings and need to reload
 GUI logging window to read logfile live (tail -f type)
 
 GUI rearrange to make it actually nice
+
+Nice profile printout for GUI?
+
+Fix double logger shit
+	- Fix main gui loop first
+
+Bug if add key to profile settings dictionary it crashes once on startup
+	- Super rare, only I would add keys but could happen, fix
+
+Implement the logger filter + colouring if want
+Figure out logging
+
+Wrap things like excel running/networking in try catch

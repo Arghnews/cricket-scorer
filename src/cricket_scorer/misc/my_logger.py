@@ -44,10 +44,13 @@ class LogWrapper():
 # streaming compression needs to consider this too (don't bother with it).
 
 def get_console_logger():
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(get_console_handler())
-    return LogWrapper(logger)
+    if not hasattr(get_console_logger, "logger"):
+        logger = logging.getLogger()
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(get_console_handler())
+        logger = LogWrapper(logger)
+        get_console_logger.logger = logger
+    return get_console_logger.logger
 
 def get_file_logger(filename):
     # May want to add loggername parameter

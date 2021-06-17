@@ -68,7 +68,8 @@ class BaseProfileBuilder:
         if logs_folder is not None:
             assert self._data["logger"].func is not my_logger.get_console_logger
             self._data["logger"].args["logs_folder"] = logs_folder
-        return args_class(self._simple_data, self._data)
+        return args_class(copy.deepcopy(self._simple_data),
+                          copy.deepcopy(self._data))
 
 class SenderProfileBuilder(BaseProfileBuilder):
     def __init__(self):
@@ -112,10 +113,17 @@ class Args:
         if "sock" in self._ready:
             self.sock.close()
 
+    def close(self):
+        assert not self._is_closed, "Args .close() called twice"
+        self._is_closed = True
+        if "sock" in self._ready:
+            self.sock.close()
+
     def __init__(self, simple_data: dict,
             data: typing.Dict[str, BuildFuncArgs]):
         self._data = data
         self._ready = simple_data
+        self._is_closed = False
 
     @property
     def logger(self):
@@ -151,6 +159,9 @@ class SenderArgs(Args):
             self._ready["score_reader"] = self._data["score_reader"].func(
                     self.logger)
         return self._ready["score_reader"]
+    def close(self):
+        if "score_reader" in self._ready and hasattr(self.score_reader, "close"):
+            self.score_reader.close()
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if "score_reader" in self._ready and hasattr(self.score_reader, "close"):
             self.score_reader.close()

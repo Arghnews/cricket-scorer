@@ -23,11 +23,13 @@ class SimpleUDP:
         self.close()
 
     def close(self):
+        print("SIMPLEUDP socket CLOSED", id(self))
         self.log.info("Closing socket")
         # self.poller.unregister(self.sock)
         self.sock.close()
 
     def __init__(self, log, server_port, host_ip_bind = "0.0.0.0"):
+        print("SIMPLEUDP socket OPENED", id(self))
         assert isinstance(server_port, int)
         server_addr = socket.getaddrinfo(host_ip_bind, server_port)[0][-1]
         #  client_addr = socket.getaddrinfo(client_ip, client_port)[0][-1]

@@ -237,7 +237,7 @@ class Sender:
     def _poll(self):
         packet, addr = self._conn.recvfrom(timeout_ms = 0)
         if addr is not None and addr != self._receiver_ip_port:
-            self._log.warning("Received packet from", addr, "unexpected",
+            self._log.warning("Received packet from", addr, "- expected",
                     self._receiver_ip_port)
 
         if packet is not None:
