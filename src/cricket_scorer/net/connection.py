@@ -178,7 +178,9 @@ class Sender:
     def __init__(self, args):
         self._log = args.logger
 
+        print("Should see sender print now")
         self._log.info("\n\nSender started with params", args)
+        print("Should of just seen sender print now")
 
         self._log.debug("Initialising socket")
         self._sock: SimpleUDP = args.sock
@@ -539,7 +541,7 @@ def receiver_loop_impl(args):
                     #     score = int_to_bytes(-1, 9)
                     log.info("Updating score to", Packet.payload_as_string(
                         score), "and echoing/sending back")
-                    score_writer(score)
+                    args.score_writer(score)
                     conn.sendto(score, addr)
                     client_addr = addr
                     #  lookout_timeout.reset()

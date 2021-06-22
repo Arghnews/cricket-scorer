@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 
 import copy
+from inspect import trace
 import io
-from logging import disable
+import logging
 import multiprocessing
 import os
 import sys
 import time
+import traceback
 import types
 import typing
 
 import PySimpleGUI as sg
-from PySimpleGUI.PySimpleGUI import DEBUGGER_VARIABLE_DETAILS_FONT, Ok
 import plyer
 
-from cricket_scorer.misc import profiles
-from cricket_scorer.misc.params import SenderProfileBuilder
+from cricket_scorer.misc import my_logger, profiles
 from cricket_scorer.net import connection
 from cricket_scorer.score_handlers.scoredata import ScoreData
 
@@ -78,18 +78,38 @@ class BetterTimer:
             print(name, "->", t)
 
 def notify_disconnected(title, message, timeout = 15):
-
     plyer.notification.notify(
     title = title,
     message = message,
     timeout = timeout,
     )
 
+from contextlib import contextmanager
+
+@contextmanager
+def add_handler(handler, args):
+    try:
+        args.logger.addHandler(handler)
+        yield args
+    finally:
+        args.logger.removeHandler(handler)
+
+class MyLogFilter(logging.Filter):
+    def __init__(self) -> None:
+        super().__init__()
+        self._level = 0
+    def filter(self, record: logging.LogRecord) -> int:
+        return record.levelno >= self._level
+    def setLevel(self, level: str):
+        assert hasattr(logging, level.upper())
+        self._level = getattr(logging, level.upper())
+
 def main():
+    print(type(logging.getLogger()))
 
     sg.theme('Dark Blue 3')  # please make your creations colorful
 
-    initial = os.path.dirname(os.path.realpath(__file__))
+    # initial = os.path.dirname(os.path.realpath(__file__))
 
     # https://en.wikipedia.org/wiki/List_of_Microsoft_Office_filename_extensions
     extensions = (
@@ -122,7 +142,7 @@ def main():
             "logs_folder": "",
             # TODO: change this to live
             "profile": "test_sender_args_excel",
-            "log_level": "WARNING",
+            "log_level": "DEBUG",
     }
 
     settings = dict.fromkeys(keys, "")
@@ -326,15 +346,25 @@ def main():
                 key="dev_layout",
         )]
 
+    # In case need to import module level logger to initialise logging stuff
+    my_logger.get_logger()
+    log_level_names = list()
+    for i in range(0, 1001):
+        level_name = logging.getLevelName(i)
+        if level_name != f"Level {i}":
+            log_level_names.append(level_name)
+
     log_output_layout = [
         [
-            sg.OptionMenu(["WARNING", "INFO", "DEBUG"],
-                          size=(10, 2), default_value="INFO", key="log_level"),
+            sg.Text("Show log level and above:"),
+            sg.OptionMenu(log_level_names,
+                          size=(10, 2), default_value=settings["log_level"],
+                          key="log_level"),
         ],
         [
-            sg.Multiline(size=(140, 15), font=("arial", 12), key="log_output",
-                      echo_stdout_stderr=True, reroute_stdout=True,
-                      reroute_stderr=True,
+            sg.Multiline(size=(140, 20), font=("arial", 12), key="log_output",
+                      echo_stdout_stderr=False, reroute_stdout=False,
+                      reroute_stderr=False,
                       write_only=True, auto_refresh=True,
                       disabled=True,
                       ),
@@ -349,11 +379,12 @@ def main():
         [sg.Frame("Log output", log_output_layout)],
     ]
 
-    developer_tab_layout = [
-        [sg.Frame("Enable developer/advanced settings",
-                  [dev_layout]),
-         ],
-    ]
+    developer_tab_layout = [dev_layout]
+    # developer_tab_layout = [
+    #     [sg.Frame("Enable developer/advanced settings",
+    #               [dev_layout]),
+    #      ],
+    # ]
 
     tab_group_layout = [
         [
@@ -367,7 +398,8 @@ def main():
     layout = [
         [sg.Frame("Status", status_layout, pad=((5, 5), (5, 15)))],
         [sg.TabGroup(tab_group_layout, key="tab_group_layout",
-                     pad=((55, 5), (5, 20))), ],
+                    enable_events=True,
+                    pad=((55, 5), (5, 20))), ],
         [sg.Frame("User actions", user_actions_layout, vertical_alignment="center",
                   pad=((5, 5), (20, 5)),
                   )],
@@ -378,12 +410,27 @@ def main():
 
     layout[-1].append(sg.Sizegrip())
 
+    crash_window_layout = [
+        [
+            sg.Multiline(size=(140, 20), font=("arial", 12), key="crash_window_output",
+                         echo_stdout_stderr=True,
+                         #  reroute_stdout=True,
+                         #  reroute_stderr=True,
+                         write_only=True, auto_refresh=True,
+                         disabled=True,
+                         focus=True,
+                         ),
+        ],
+        [
+            sg.Exit(),
+        ],
+    ]
+
     state = types.SimpleNamespace(
         timer=BetterTimer(),
         settings=settings,
         saved_settings=saved_settings,
-        running_settings=None,
-        running=False,
+        running_settings={},
         scoredata=ScoreData(),
     )
         # dev_layout_toggle=False)
@@ -407,21 +454,49 @@ def main():
         # Check how logging file stuff works/doesn't
         # Then done
 
-        done = False
-        while not done:
-            with sender_profiles.build_profile(state.settings["profile"]) as args:
-                done = loop(window, state, args, user_settings_file)
+        import functools
+        p = functools.partial(print_to_output, window=window, key="log_output")
+        h = MyLogHandler(p)
+        h.setFormatter(my_logger.get_formatter())
+        log_output_filter = MyLogFilter()
+        h.addFilter(log_output_filter)
 
-        # while True:
-            # with sender_profiles.build_profile(state.settings["profile"]) as args:
-            # print("Arguments from profile used:", args)
-            # sender_connection = connection.Sender(args)
-                # if done:
-                #     break
+        done = False
+        run_once = False
+        while not done:
+            print("Using profile:", state.settings["profile"])
+            with sender_profiles.build_profile(state.settings["profile"]) as args, \
+                add_handler(h, args):
+
+                args.logger.info("Test msg info")
+                args.logger.debug("Test msg dbg")
+                args.logger.error("Test msg error")
+                done = loop(window, state, args, user_settings_file, log_output_filter,
+                            run_once)
+                run_once = True
+
+    except Exception as e:
+        trace = traceback.format_exc()
+        print(f"Exception!: {trace}")
+        window2 = sg.Window("Crash print window", layout=crash_window_layout,
+                            # keep_on_top=True,
+                            force_toplevel=True,
+                            finalize=True)
+        window2["crash_window_output"].print(f"Exception: {trace}")
+        window2.bring_to_front()
+        window2.force_focus()
+        while True:
+            # Ensure this has a timeout otherwise stuff doesn't work on windows:
+            # https://github.com/PySimpleGUI/PySimpleGUI/issues/1077
+            win, event, values = sg.read_all_windows(10)
+            if event in ("save_and_quit", sg.WIN_CLOSED, "quit_without_saving"):
+                window.close()
+            if win == window2 and event in (sg.WIN_CLOSED, "Exit"):
+                break
 
     finally:
         state.timer.summary()
-        window.close()
+        # window.close()
 
 def run(state, args):
     # FIXME: this and other stuff that can fail like networking stuff
@@ -430,24 +505,45 @@ def run(state, args):
     print(args)
     print("RUN with state:")
     print(state)
-    args.score_reader.refresh_excel(state.settings["spreadsheet_path"],
-                    state.settings["worksheet"], state.settings["total"],
-                    state.settings["wickets"], state.settings["overs"],
-                    state.settings["innings"])
+    try:
+        args.score_reader.refresh_excel(state.settings["spreadsheet_path"],
+                        state.settings["worksheet"], state.settings["total"],
+                        state.settings["wickets"], state.settings["overs"],
+                        state.settings["innings"])
+    except Exception as e:
+        error_str = traceback.format_exc()
+        args.logger.error(f"Error running: {error_str}")
+        return False
+    else:
+        state.running_settings = copy.deepcopy(state.settings)
+        return True
 
-    state.running_settings = copy.deepcopy(state.settings)
-    state.running = True
+class MyLogHandler(logging.StreamHandler):
+    def __init__(self, log_func) -> None:
+        super().__init__(stream=io.StringIO())
+        self._log_func = log_func 
+    def emit(self, record: logging.LogRecord):
+        self._log_func(self, record)
+
+def print_to_output(handler, record: logging.LogRecord, window, key):
+    background_color = None
+    text_color = "black"
+    if record.levelno > logging.INFO:
+        background_color = "red",
+    sg.cprint(handler.formatter.format(record),
+              background_color=background_color, window=window, key=key)
 
 # TODO: yes
-def loop(window, state, args, user_settings_file):
+def loop(window, state, args, user_settings_file, log_output_filter, run_on_start=False):
 
+    running = False
     connected = False
     done = False
 
     status_text_format_ok = {"background_color": "green"}
     status_text_format_warning = {"background_color": "red"}
 
-    print("Initial state.settings[profile]", state.settings["profile"])
+    # print("Initial state.settings[profile]", state.settings["profile"])
 
     printer = OnlyPrintOnDiff()
     # _print = lambda *args, **kwargs: printer.print(*args, **kwargs)
@@ -458,93 +554,21 @@ def loop(window, state, args, user_settings_file):
     try:
         sender_connection = connection.Sender(args)
     except Exception as e:
-        args.log.error(f"Problem initialising socket to listen for connection: {str(e)}")
+        args.logger.error(f"Problem initialising socket to listen for connection: {str(e)}")
     # sender_connection IS in scope here
 
-    if state.running:
-        run(state, args)
+    if run_on_start:
+        running = run(state, args)
+        window["log_tab"].select()
 
-    sg.cprint("hi", text_color="red", window=window, key="log_output")
     state.timer.start("loop")
-    while True:
+    looping = True
+    while looping:
         _print()
 
         state.timer.start("window.read")
         event, values = window.read(timeout = 10)
         state.timer.stop("window.read")
-        # if values["spreadsheet_selector"]:
-        #     values["spreadsheet"] = values["spreadsheet_selector"]
-        #     settings["spreadsheet"] = values["spreadsheet_selector"]
-
-        _print(event)
-
-        if event == "Save":
-            _print("Saving settings", state.settings)
-
-            s = set(values.keys()) & set(state.settings.keys())
-            _print([(k, state.settings[k], values[k]) for k in s if values[k] != state.settings[k]])
-
-            user_settings_file.write_new_dictionary(state.settings)
-            state.saved_settings = copy.deepcopy(state.settings)
-
-        if event == "save_and_quit" or event == sg.WIN_CLOSED:
-            print(args.score_reader)
-            print(type(args.score_reader))
-            user_settings_file.write_new_dictionary(state.settings)
-            done = True
-            break
-
-        if event == "quit_without_saving":
-            done = True
-            break
-
-        if event == "run":
-            _print("Run")
-            _print(state.settings)
-            _print(values)
-            s = set(values.keys()) & set(state.settings.keys())
-            _print([(k, state.settings[k], values[k]) for k in s if values[k] != state.settings[k]])
-
-            _print("Calling reader.start with " + str(state.settings))
-
-            # In the event Run is clicked, and we're already running, and the profile
-            # has been changed, need to break out of this loop so things like the socket
-            # can be reacquired
-            if not state.running:
-                run(state, args)
-            elif state.settings["profile"] != state.running_settings["profile"]:
-                assert state.running
-                assert state.running_settings["profile"] is not None
-                done = False
-                break
-
-            # Convert Args to typing.ContextManager?
-            # can simplify init stuff?
-            # have this be a function, parameters including args and sender_connection
-            # can make sure to close them cleanly
-            # context managers more?
-            # Need to properly consider, and handle closing of stuff now
-
-        if event == "delete_saved_settings":
-            user_settings_file.delete_file()
-            state.saved_settings.clear()
-            print("Deleting cached file")
-            pass
-
-        _print("Event, values:", event, values)
-        _print(window["spreadsheet_path"])
-
-        # if event == "dev_layout_toggle":
-        #     if state.dev_layout_toggle:
-        #         # Hide
-        #         window["dev_layout"].update(visible=False)
-        #         state.dev_layout_toggle = False
-        #         window["dev_layout_toggle"].update(value = False)
-        #     else:
-        #         # Show
-        #         window["dev_layout"].update(visible=True)
-        #         state.dev_layout_toggle = True
-        #         window["dev_layout_toggle"].update(value = True)
 
         for k, v in values.items():
             if k == "spreadsheet_selector":
@@ -564,16 +588,69 @@ def loop(window, state, args, user_settings_file):
             elif k == "tab_group_layout":
                 pass
             elif k == "log_level":
-                # TODO
-                ...
+                log_output_filter.setLevel(v)
+                state.settings["log_level"] = v
             elif k in state.settings:
                 state.settings[k] = v
             else:
                 assert False, (f"Unhandled value in gui values \"{k}\": \"{v}\", "
                                "values: {values}")
 
+        if event == "Save":
+            _print("Saving settings", state.settings)
+
+            s = set(values.keys()) & set(state.settings.keys())
+            _print([(k, state.settings[k], values[k]) for k in s if values[k] != state.settings[k]])
+
+            user_settings_file.write_new_dictionary(state.settings)
+            state.saved_settings = copy.deepcopy(state.settings)
+
+        if event == "save_and_quit" or event == sg.WIN_CLOSED:
+            print(args.score_reader)
+            print(type(args.score_reader))
+            user_settings_file.write_new_dictionary(state.settings)
+            looping = False
+            done = True
+
+        if event == "quit_without_saving":
+            looping = False
+            done = True
+
+        if event == "run":
+            _print("Run")
+            _print(state.settings)
+            _print(values)
+            s = set(values.keys()) & set(state.settings.keys())
+            _print([(k, state.settings[k], values[k]) for k in s if values[k] != state.settings[k]])
+
+            _print("Calling reader.start with " + str(state.settings))
+
+            # In the event Run is clicked, and we're already running, and the profile
+            # has been changed, need to break out of this loop so things like the socket
+            # can be reacquired
+
+            if not running or \
+                state.settings["profile"] != state.running_settings["profile"]:
+                looping = False
+                done = False
+
+            # Convert Args to typing.ContextManager?
+            # can simplify init stuff?
+            # have this be a function, parameters including args and sender_connection
+            # can make sure to close them cleanly
+            # context managers more?
+            # Need to properly consider, and handle closing of stuff now
+
+        if event == "delete_saved_settings":
+            user_settings_file.delete_file()
+            state.saved_settings.clear()
+            print("Deleting cached file")
+
+        _print("Event, values:", event, values)
+        _print(window["spreadsheet_path"])
+
         state.timer.start("reader")
-        if state.running:
+        if running:
             old_scoredata = state.scoredata
             state.scoredata = args.score_reader.read_score()
             if old_scoredata != state.scoredata:
@@ -581,7 +658,7 @@ def loop(window, state, args, user_settings_file):
         state.timer.stop("reader")
 
         state.timer.start("network poll")
-        if state.running:
+        if running:
             sender_connection.poll(state.scoredata.score)
         state.timer.stop("network poll")
 
@@ -598,13 +675,13 @@ def loop(window, state, args, user_settings_file):
                                     "cricket-scorer has lost connection")
                 state.timer.stop("desktop notify disconnect")
 
-        if state.running:
+        if running:
             window["is_running"].update("Running", **status_text_format_ok)
         else:
             window["is_running"].update(
                 "Not running", **status_text_format_warning)
 
-        if state.running and state.settings != state.running_settings:
+        if running and state.settings != state.running_settings:
             window["settings_changed"].update(visible=True)
         else:
             window["settings_changed"].update(visible=False)
@@ -626,27 +703,14 @@ def loop(window, state, args, user_settings_file):
         #  if values != settings:
         _print("Updating")
 
-        # else:
-            # _print("Not showing")
-            # window["run_label"].update(visible = False)
-
-        #  if values == last_values:
-            #  continue
-
-            #  #  _print("Updating!")
-            #  #  _print("spreadsheet now:", spreadsheet)
-        #  if values["sheet"]:
-            #  settings["sheet"] = values["sheet"]
-            #  #  _print("spreadsheet now:", spreadsheet)
-            #  window["sheet"].update(settings["sheet"])
-
         printer.print_contents_if_diff()
         #  printer = OnlyPrintOnDiff(printer)
     #  print("Selected file at", values["Browse"])
 
     state.timer.stop("loop")
-    state.running_settings = None
+    state.running_settings.clear()
     printer.print_contents_if_diff()
+
     return done
 
 if __name__ == "__main__":

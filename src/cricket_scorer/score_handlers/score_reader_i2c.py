@@ -36,4 +36,7 @@ class ScoreReaderI2c:
             # can send a zero as 0, a one as 1, so on
             results.append(255 - b)
         return ScoreData(score=bytes(results))
+    
+    def close(self):
+        pass
 
