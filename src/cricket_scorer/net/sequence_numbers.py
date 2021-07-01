@@ -4,6 +4,11 @@ import sys
 
 from .utility import int_to_bytes
 
+# A note on this file:
+# Much of it was written back when a micropython port on an esp8266 was being
+# targeted. Now that is not the case. However, since it works, I'm going to
+# leave it as is.
+
 # TODO: https://docs.python.org/3/reference/datamodel.html#object.__bytes__
 # Has a to bytes method that's not pickle built in, use it
 # Add the add method operator overload - consider __add__, __radd__, __iadd__
@@ -32,33 +37,22 @@ from .utility import int_to_bytes
 # possibly unintuitive given the wrong context whereas of course this works
 # SequenceNumber(n = 1, bits = 3) == SequenceNumber(n = 9, bits = 3) # True
 
-# TODO: make some kind of factory or wrapper or something so don't have to put
-# the god damn bits size in every construction of an object of these
-
-if sys.platform == "esp8266":
-    import uos
-else:
-    import random
 
 # Subclassing object was here for a reason (not old style classes but another
 # actually relevant reason in this Python3 project but I didn't write it down
-# and have now forgotten..
+# and have now forgotten..)
 class SequenceNumber(object):
     "Class wrapping 4 byte unsigned sequence numbers"
 
     __slots__ = ("n", "bits")
 
-    def __init__(self, n = None, *, bits = None, bytes_ = None, random = False):
-        if random is True:
-            assert n is None
-        assert (bits is None) ^ (bytes_ is None) # Exactly one is provided
+    def __init__(self, n=None, *, bits=None, bytes_=None):
+        assert (bits is None) ^ (bytes_ is None)  # Exactly one is provided
         if bytes_ is not None:
             bits = bytes_ * 8
         assert bits >= 2
 
-        if random:
-            n = gen_random(bits * 8)
-        elif type(n) is bytes:
+        if type(n) is bytes:
             n = int.from_bytes(n, sys.byteorder)
         elif type(n) is int:
             pass
@@ -68,19 +62,16 @@ class SequenceNumber(object):
             assert False, "Unreachable"
 
         # TODO: just gen sequence numbers as 0 if none?
-        self.n = n % (2 ** bits)
+        self.n = n % (2**bits)
         self.bits = bits
 
-    # Unsure about this
-    # Advantage is that at the call site it's a one statement-er rather than two
-    # statements/lines which means you can't forget to increment after using
     def post_increment(self):
         cp = self.__copy__()
         self += 1
         return cp
 
     def __copy__(self):
-        return SequenceNumber(n = self.n, bits = self.bits)
+        return SequenceNumber(n=self.n, bits=self.bits)
 
     # Does adding two sequence numbers together make sense? Certainly you want
     # to add an integer to a sequence number, but two together?
@@ -90,7 +81,7 @@ class SequenceNumber(object):
             return NotImplemented
         # if type(other) is not in (type(self), int):
         # print("__iadd__", self, "to", other, type(other))
-        self.n = (self.n + other) % (2 ** self.bits)
+        self.n = (self.n + other) % (2**self.bits)
         return self
 
     def __add__(self, other):
@@ -113,10 +104,10 @@ class SequenceNumber(object):
 
     # rsub is confusing
 
-    def _type_check_(self, other):
-        if type(self) is not type(other) or self.bits != other.bits:
-            return NotImplemented
-        return True
+    # def _type_check_(self, other):
+    #     if type(self) is not type(other) or self.bits != other.bits:
+    #         return NotImplemented
+    #     return True
 
     # TODO: finish these operators in terms of each other
 
@@ -130,10 +121,10 @@ class SequenceNumber(object):
         if type(self) is not type(other) or self.bits != other.bits:
             return NotImplemented
         a, b = self.n, other.n
-        c = (a + (2 ** (self.bits - 1))) % (2 ** self.bits)
-        if a < c: # Non wrapping case
+        c = (a + (2**(self.bits - 1))) % (2**self.bits)
+        if a < c:  # Non wrapping case
             return a < b and b <= c
-        else: # Wrapping case
+        else:  # Wrapping case
             return a < b or b <= c
 
     def __le__(self, other):
@@ -173,41 +164,46 @@ class SequenceNumber(object):
     # def __ne__(self, other):
     #     return not self == other
 
-            # c = (a + 4) % 8
-            # if a < c:
-            #     return b > a and b <= c
-            # else:
-            #     return b > a or b < c
+    # c = (a + 4) % 8
+    # if a < c:
+    #     return b > a and b <= c
+    # else:
+    #     return b > a or b < c
 
-            # d = (a + c) % (2 ** n)
+    # d = (a + c) % (2 ** n)
 
-            # return b < (a + 4) % C
-            # print("")
-            # print("a: {}, b: {}".format(a, b))
-            # print("b > a or ((d - b) % C) > 0")
-            # print("{} > {} or (({} - {}) % {}) > 0".format(b, a, d, b, C))
-            # return (b - a) % C > 0 and ((d - b) % C) > 0
-            # e = (b + c) % (2 ** n)
-            # print(a, b, c, d, e)
-            # return a <= (b + c) % (2 ** n)
-        # else:
-        #     return a <= (b + c) % (2 ** n)
-        # Fails for case 1 < 7 because misses a case
-        # if self.n == x:
-        #     return False
-        # elif self.n < x:
-        #     return self.n < x
-        # else:
-        #     mid = (2 ** (self.bits - 1))
-        #     # print("(({} - {}) % {} <= {}".format(x, self.n, (2 ** self.bits), mid))
-        #     return ((x - self.n) % (2 ** self.bits)) <= mid
+    # return b < (a + 4) % C
+    # print("")
+    # print("a: {}, b: {}".format(a, b))
+    # print("b > a or ((d - b) % C) > 0")
+    # print("{} > {} or (({} - {}) % {}) > 0".format(b, a, d, b, C))
+    # return (b - a) % C > 0 and ((d - b) % C) > 0
+    # e = (b + c) % (2 ** n)
+    # print(a, b, c, d, e)
+    # return a <= (b + c) % (2 ** n)
+    # else:
+    #     return a <= (b + c) % (2 ** n)
+    # Fails for case 1 < 7 because misses a case
+    # if self.n == x:
+    #     return False
+    # elif self.n < x:
+    #     return self.n < x
+    # else:
+    #     mid = (2 ** (self.bits - 1))
+    #     # print("(({} - {}) % {} <= {}".format(x, self.n, (2 ** self.bits), mid))
+    #     return ((x - self.n) % (2 ** self.bits)) <= mid
+
+
 # x, mid = other.n - self.n, (2 ** (self.bits - 1))
-        # print(x)
-        # neg = - (2 ** self.bits) - 1 <= x <= - mid
-        # pos = 0 < x <= mid
-        # print(0, "<", o, "<=", (2 ** self.bits - 1))
-        # print(neg, pos)
-        # return neg or pos
+# print(x)
+# neg = - (2 ** self.bits) - 1 <= x <= - mid
+# pos = 0 < x <= mid
+# print(0, "<", o, "<=", (2 ** self.bits - 1))
+# print(neg, pos)
+# return neg or pos
+
+# The below is left here as it's used as testing
+
 
 def main(argv):
 
@@ -225,10 +221,10 @@ def main(argv):
     #     acc |= b << i * 8
     # print(hex(acc))
 
-    s = SequenceNumber(n = 6, bits = 3)
-    s2 = SequenceNumber(n = 7, bits = 3)
+    s = SequenceNumber(n=6, bits=3)
+    s2 = SequenceNumber(n=7, bits=3)
     for i in range(8):
-        s2 = SequenceNumber(n = i, bits = 3)
+        s2 = SequenceNumber(n=i, bits=3)
         # s < s2
         # print(s, "<", s2, s < s2)
 
@@ -244,14 +240,14 @@ def main(argv):
     s += 5
     print("")
 
-    s, s2 = SequenceNumber(n = 6, bits = 3), SequenceNumber(n = 7, bits = 3)
+    s, s2 = SequenceNumber(n=6, bits=3), SequenceNumber(n=7, bits=3)
     print("s:", s, ", s2:", s2)
     print("s = s + 5")
     s = s + 5
     print("s:", s, ", s2:", s2)
     print("")
 
-    s, s2 = SequenceNumber(n = 6, bits = 3), SequenceNumber(n = 7, bits = 3)
+    s, s2 = SequenceNumber(n=6, bits=3), SequenceNumber(n=7, bits=3)
     print("s:", s, ", s2:", s2)
     print("s = 5 + s")
     s = 5 + s
@@ -272,7 +268,7 @@ def main(argv):
     # print("s:", s, ", s2:", s2)
     # print("")
 
-    s, s2 = SequenceNumber(n = 6, bits = 3), SequenceNumber(n = 7, bits = 3)
+    s, s2 = SequenceNumber(n=6, bits=3), SequenceNumber(n=7, bits=3)
     print("s:", s, ", s2:", s2)
     print("s += 5")
     s += 5
@@ -324,40 +320,41 @@ def main(argv):
     # Advantage is this allows for internal copy ctor without user facing one if
     # needed by memberwise copying. Also no overhead of recalling ctor with same
     # args.
-    print([attr for attr in dir(s) if not callable(getattr(s, attr)) and not attr.startswith("__")])
+    print(
+        [attr for attr in dir(s) if not callable(getattr(s, attr)) and not attr.startswith("__")])
     # print(vars(s))
 
-    ss = SequenceNumber(n = 0, bits = 3)
+    ss = SequenceNumber(n=0, bits=3)
     for i in range(32):
         print(i, ss)
         # print(int(ss))
         assert i % 8 == int(ss)
         ss += 1
 
-    s4 = SequenceNumber(n = 0, bits = 3)
+    s4 = SequenceNumber(n=0, bits=3)
     print("s4:", s4)
     s4 += 8
     s4 -= 10
     print(s4)
     print(bytes(s4))
-    print(bytes(SequenceNumber(n = 69, bits = 9)))
+    print(bytes(SequenceNumber(n=69, bits=9)))
 
-    aa = SequenceNumber(n = 3, bits = 32)
+    aa = SequenceNumber(n=3, bits=32)
     # Careful with side effect in assert
     print("aa:", aa)
     bb = aa.post_increment()
     print("aa:", aa)
     print("bb:", bb)
     # Take care not to compare SequenceNumber to int in an assert, it just fails
-    assert aa == SequenceNumber(n = 4, bits = 32)
-    assert bb == SequenceNumber(n = 3, bits = 32)
+    assert aa == SequenceNumber(n=4, bits=32)
+    assert bb == SequenceNumber(n=3, bits=32)
 
     print(max(aa, bb))
 
-    z = SequenceNumber(n = 60, bits = 42)
+    z = SequenceNumber(n=60, bits=42)
     assert z != 0
     assert z != 60
-    assert z == SequenceNumber(n = 60, bits = 42)
+    assert z == SequenceNumber(n=60, bits=42)
     # 0 == z
     # z == 0
     try:
@@ -391,14 +388,20 @@ def main(argv):
     # except TypeError:
     #     pass
 
-    assert SequenceNumber(n = 4, bits = 4) > SequenceNumber(n = 3, bits = 4)
-    assert SequenceNumber(n = 20, bits = 4) > SequenceNumber(n = 3, bits = 4)
-    assert SequenceNumber(n = 14, bits = 4) < SequenceNumber(n = 3, bits = 4)
-    assert SequenceNumber(n = 20, bits = 3) != SequenceNumber(n = 3, bits = 4)
-    assert SequenceNumber(n = 0, bits = 4) >= SequenceNumber(n = -1, bits = 4)
+    assert SequenceNumber(n=4, bits=4) > SequenceNumber(n=3, bits=4)
+    assert SequenceNumber(n=20, bits=4) > SequenceNumber(n=3, bits=4)
+    assert SequenceNumber(n=14, bits=4) < SequenceNumber(n=3, bits=4)
+    assert SequenceNumber(n=20, bits=3) != SequenceNumber(n=3, bits=4)
+    assert SequenceNumber(n=0, bits=4) >= SequenceNumber(n=-1, bits=4)
 
-class A: pass
-class B(A): pass
+
+class A:
+    pass
+
+
+class B(A):
+    pass
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

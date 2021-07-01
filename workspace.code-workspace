@@ -1,8 +1,21 @@
 {
-	"folders": [
-		{
-			"path": "."
-		}
-	],
-	"settings": {}
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "vim.smartcase": true,
+        "python.formatting.provider": "yapf",
+        // "python.formatting.yapfArgs": [
+        //     "--style=.style.yapf"
+        // ],
+        // "python.formatting.autopep8Args": [
+        //     "--max-line-length", "100",
+        //     "--experimental",
+        // ],
+        "extensions.supportVirtualWorkspaces": {
+            "pub.name": false
+        },
+    }
 }

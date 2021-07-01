@@ -5,23 +5,25 @@ from smbus2 import SMBus
 from cricket_scorer.score_handlers.scoredata import ScoreData
 from . import utils
 
+
 # This is what the remote control box should run.
 # Won't have clean shutdown, but in practice the device will be switched off by
 # removing the power anyway
 class ScoreReaderI2c:
+    """Run on the (remote) control box, reads score from I2C bus"""
     def __init__(self, log):
-        self.log = log
-        self.bus = SMBus(1)
-        self.addrs = [113, 114, 115]
-        self.chans = [4, 5, 6]
-        self.mux_channels = [(m, c) for m in self.addrs for c in self.chans]
+        self._log = log
+        self._bus = SMBus(1)
+        addrs = [113, 114, 115]
+        chans = [4, 5, 6]
+        self._mux_channels = [(m, c) for m in addrs for c in chans]
 
-        self.write_byte = partial(utils.write_byte_safe, self.bus, self.log)
-        self.read_byte = partial(utils.read_byte_else, self.bus, self.log)
+        self.write_byte = partial(utils.write_byte_safe, self._bus, self._log)
+        self.read_byte = partial(utils.read_byte_else, self._bus, self._log)
 
     def read_score(self):
         results = []
-        for mux, chan in self.mux_channels:
+        for mux, chan in self._mux_channels:
             # In all of testing this sequence has never failed.
 
             # Set the address of the multiplexer and its device we're reading
@@ -36,7 +38,6 @@ class ScoreReaderI2c:
             # can send a zero as 0, a one as 1, so on
             results.append(255 - b)
         return ScoreData(score=bytes(results))
-    
+
     def close(self):
         pass
-

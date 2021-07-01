@@ -41,11 +41,11 @@ Remove micropython/esp8266 specific stuff like random number generation/socket s
 
 Notify when not connected or haven't received timeout in a while
 
-	First of all, mandatory log folder, set in GUI, need logs
-	Status updates
-		- Connected or not, have received reply in reasonable time or not
-		- Maybe something about if have path to receiver, as a proxy for if
-		  connected?
+    First of all, mandatory log folder, set in GUI, need logs
+    Status updates
+        - Connected or not, have received reply in reasonable time or not
+        - Maybe something about if have path to receiver, as a proxy for if
+          connected?
 
 Test the new select stuff with ubuntu and raspberry pis
 Handle windows specific errors, and any linux/pi specific stuff too
@@ -67,11 +67,11 @@ GUI rearrange to make it actually nice
 
 Nice profile printout for GUI?
 
-Fix double logger shit
-	- Fix main gui loop first
+✓ - Fix double logger shit
+    - Fix main gui loop first
 
 Bug if add key to profile settings dictionary it crashes once on startup
-	- Super rare, only I would add keys but could happen, fix
+    - Super rare, only I would add keys but could happen, fix
 
 Implement the logger filter + colouring if want
 Figure out logging
@@ -89,7 +89,43 @@ Fix loop timeouts for polled stuff?
 Test receivers on linux
 
 NEED -
-	Revamp go that GUI starts and args and other stuff starts after
-	So can always see state/errors on GUI and change config
-	ie. current one is wifi is disabled, socket can't bind locally
-	can't change config either
+    Revamp go that GUI starts and args and other stuff starts after
+    So can always see state/errors on GUI and change config
+    ie. current one is wifi is disabled, socket can't bind locally
+    can't change config either
+
+✓ - Repeated bongs/notifications when disconnected, until a box is clicked saying OK
+
+✓ - Logger init messiness
+
+✓ - Something sometimes hangs on quit, not sure what yet
+    - This is the thread handle that a plyer notification holds
+    It doesn't prevent all the application stuff on my end from closing, and will look to the 
+    user like it's closed so just leave it as is
+
+✓ - Fix autoscrolling - see github
+✓ - logging logs folder from GUI + errors check
+
+Improve printouts of things like packet for debug and not
+GUI printouts
+
+✓ - WIFI notifications?
+    Trouble is need zeroconfig srevice
+    - This is all dumb, just put a reminder to connect to the receiver's ad hoc wifi network
+    and if you're connected to that network over wifi the pi must be running
+    So current is_connected notification is fine
+
+Logger only starts once run, so if crashed before that we wouldn't get a logfile
+    - Not fixing (for now)
+
+deps - xlwings - BSD, PySimpleGUI - GPLv3, plyer - MIT
+
+xlwings - BSD license
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this
+  list of conditions and the following disclaimer in the documentation and/or
+  other materials provided with the distribution.
+
+
+
