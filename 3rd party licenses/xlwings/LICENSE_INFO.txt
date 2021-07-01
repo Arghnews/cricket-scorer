@@ -1,0 +1,4 @@
+xlwings
+    Copyright (C) 2014 - present, Zoomer Analytics GmbH.
+    https://www.xlwings.org/
+    BSD 3-clause license

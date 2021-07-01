@@ -1,0 +1,4 @@
+PySimpleGUI
+    Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+    https://pysimplegui.readthedocs.io/en/latest/
+    GNU Lesser General Public License v3.0

@@ -1,0 +1,4 @@
+plyer
+    Copyright (c) 2010-2017 Kivy Team and other contributors
+    https://pypi.org/project/plyer/
+    MIT License

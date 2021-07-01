@@ -1,0 +1,4 @@
+smbus2
+    Copyright (c) 2017 Karl-Petter Lindegaard
+    https://pypi.org/project/smbus2/
+    MIT License
