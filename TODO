@@ -121,11 +121,8 @@ Logger only starts once run, so if crashed before that we wouldn't get a logfile
 deps - xlwings - BSD, PySimpleGUI - GPLv3, plyer - MIT
 
 xlwings - BSD license
-* Redistributions of source code must retain the above copyright notice, this
-  list of conditions and the following disclaimer.
-* Redistributions in binary form must reproduce the above copyright notice, this
-  list of conditions and the following disclaimer in the documentation and/or
-  other materials provided with the distribution.
 
+Compile python 3.7+ on the raspberry pis
 
-
+Put this somewhere -
+# rm -r -fo -ErrorAction SilentlyContinue src\cricket_scorer_arghnews.egg-info\; rm -r -fo -ErrorAction SilentlyContinue build ; python .\setup.py sdist; echo "End of sdist"; python .\setup.py bdist

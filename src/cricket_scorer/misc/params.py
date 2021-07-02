@@ -13,19 +13,19 @@ Parameters = Enum("Parameters", "NOT_PROVIDED")
 BuildFuncArgs = collections.namedtuple("BuildFuncArgs", ["func", "args"])
 
 
-def remove_prefix(string: str, prefix):
+def _remove_prefix(string: str, prefix):
     assert string.startswith(prefix)
     return string[len(prefix):]
 
 
-def get_method_name():
+def _get_method_name():
     """Helper to pull X from add_X calling method"""
     return inspect.stack()[2][3]
 
 
-def add_entry(profile_self, arg):
+def _add_entry(profile_self, arg):
     """Helper to add argument to a profile based on the calling method's name"""
-    name = remove_prefix(get_method_name(), "add_")
+    name = _remove_prefix(_get_method_name(), "add_")
     assert name not in profile_self._simple_data
     profile_self._simple_data[name] = arg
     return profile_self
@@ -59,12 +59,12 @@ class BaseProfileBuilder:
     def add_lookout_timeout_seconds(self, s):
         """When on and not connected, occasionally send out messages to the
         receiver in case it's come up to alert it that we're switched on."""
-        return add_entry(self, s)
+        return _add_entry(self, s)
 
     def add_receive_loop_timeout_milliseconds(self, t):
         """Amount of time the socket will block and listen for network
         messages."""
-        return add_entry(self, t)
+        return _add_entry(self, t)
 
 
 def _build_profile(profile: BaseProfileBuilder, logs_folder=None, overwrite_if_none=False):
@@ -100,7 +100,7 @@ class SenderProfileBuilder(BaseProfileBuilder):
         # If this profile is added based on another, this None line will overwrite
         # a potentially otherwise valid variable
     def add_receiver_ip_port(self, ip_port):
-        return add_entry(self, ip_port)
+        return _add_entry(self, ip_port)
 
     def add_score_reader(self, reader):
         self._data["score_reader"] = ArgWrapper(BuildFuncArgs(reader, {}),
@@ -112,7 +112,7 @@ class SenderProfileBuilder(BaseProfileBuilder):
         """Timer from when receive message from new client. If don't get a
         response within this timeout, will assume the client is switched off
         or we received an old message."""
-        return add_entry(self, s)
+        return _add_entry(self, s)
 
     def add_last_received_timer_seconds(self, s):
         """When connected, there can be periods of little to no network
@@ -122,12 +122,12 @@ class SenderProfileBuilder(BaseProfileBuilder):
         messages before assuming the remote end is switched off and
         disconnecting. This should therefore be realistically at least double
         the lookout_timeout on the receiver."""
-        return add_entry(self, s)
+        return _add_entry(self, s)
 
     def add_resend_same_countdown_seconds(self, s):
         """We use this to avoid resending the same score again in a short amount
         of time."""
-        return add_entry(self, s)
+        return _add_entry(self, s)
 
 
 class ReceiverProfileBuilder(BaseProfileBuilder):

@@ -3,3 +3,5 @@
 build/
 dist/
 upx-*/*
+src/cricket_scorer/data/licenses/cricket_scorer/*
+__pycache__

@@ -57,9 +57,11 @@ def find_upx():
 
 def main():
 
-    app_name = make_app_name("cricket-scorer")
-    icon = os.path.normpath("./cricket.ico")
+    app_name = make_app_name("cricket_scorer")
+    package_base = os.path.normpath("src/cricket_scorer")
+    data_prefix = os.path.join(package_base, "data", "icons")
     executable = os.path.normpath("./template_gui.py")
+    icon_path = os.path.join(data_prefix, "cricket.ico")
 
     upx_path, upx = find_upx(), ""
     if upx_path is not None:
@@ -67,17 +69,18 @@ def main():
 
     cmd = f"""pyinstaller.exe
         --noconfirm
-        --icon {icon}
+        -p "{package_base}"
+        --collect-data "cricket_scorer.data"
+        --icon "{icon_path}"
         --hidden-import plyer.platforms.win.notification
-        --add-data "cricket.ico{os.pathsep}."
-        --add-data "3rd party licenses{os.pathsep}3rd party licenses"
         --add-data "LICENSE.txt{os.pathsep}."
         --add-data "COPYING.LESSER{os.pathsep}."
+        --add-data "license_header.txt{os.pathsep}."
         {upx}
         -n {app_name}
         --clean
-        --windowed
         --onefile
+        --windowed
         {executable}
     """
 

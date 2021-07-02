@@ -1,0 +1,4 @@
+cricket_scorer
+    Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+    https://github.com/Arghnews/cricket_scorer
+    GNU Lesser General Public License v3.0

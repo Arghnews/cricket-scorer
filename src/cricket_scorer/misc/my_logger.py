@@ -54,11 +54,18 @@ def add_datetime_file_handler(logs_folder):
     return _get_file_logger(logfile_path)
 
 
+# NOTE: Design flaw in the program. The Args struct return by build_profile
+# holds a load of stuff like sockets, loggers etc. When the user in the GUI
+# clicks Run, the current Args state is closed, and a new one attempted to be
+# opened. Unfortunately, this means if the new args state fails to open (which
+# it very well may), the logging is stopped and not restarted, at least until a
+# Run is successful. This is bad.
+# Quick fix: only remove a log file_handle when replacing it immediately with
+# another
+
+
 def close_file_handler():
-    logger = logging.getLogger(_LOGGER_NAME)
-    file_handlers = [h for h in logger.handlers if isinstance(h, logging.FileHandler)]
-    assert len(file_handlers) == 1
-    logger.removeHandler(file_handlers[0])
+    pass
 
 
 def get_formatter():
@@ -72,11 +79,10 @@ def _get_file_logger(filename):
     logger = logging.getLogger(_LOGGER_NAME)
     # For now, can assume only one file handler is present at once
     file_handlers = [h for h in logger.handlers if isinstance(h, logging.FileHandler)]
-    assert len(file_handlers) == 0, \
-        f"May only get one file handler when none registered. "\
-        f"Called with filename: {filename}"\
-        f"and handlers: {file_handlers}"
-    logger.addHandler(_get_file_handler(filename))
+    new_file_handler = _get_file_handler(filename)
+    if len(file_handlers) == 1:
+        logger.removeHandler(file_handlers[0])
+    logger.addHandler(new_file_handler)
     return logger
 
 

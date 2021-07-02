@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
+import atexit
 import copy
 import functools
+import importlib.resources
 import io
 import logging
 import multiprocessing
 import os
 import pathlib
 import platform
+import subprocess
 import sys
 import textwrap
 import time
@@ -91,9 +94,65 @@ class MyLogFilter(logging.Filter):
         self._level = getattr(logging, level.upper())
 
 
+def get_resources():
+    # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html
+
+    data = types.SimpleNamespace()
+
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        # Running in PyInstaller bundle
+
+        # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html
+        # Load resources like licenses as per pyinstaller docs
+
+        def join_text_to_license(text, license):
+            return ("\n\n" + "-" * 20 + "\n\n").join((text, license))
+
+        data.name_to_license = {}
+
+        # Root directory
+        root = (pathlib.Path.cwd() / __file__).parents[0]
+
+        # Add 3rd party licenses
+        licenses_folder = root.joinpath("cricket_scorer/data/licenses")
+        assert licenses_folder.exists()
+        for license_dir in licenses_folder.iterdir():
+            license_for = license_dir.name
+            text_file, license_file = license_dir / "header.txt", license_dir / "LICENSE.txt"
+            text, license = text_file.read_text(), license_file.read_text()
+            data.name_to_license[license_for] = join_text_to_license(text, license)
+
+        data.icon_path = root.joinpath("cricket_scorer/data/icons/cricket.ico")
+        assert data.icon_path.exists()
+
+    else:
+        root = "cricket_scorer.data"
+        package = ".".join((root, "licenses"))
+        data.name_to_license = {}
+        for license_dir in importlib.resources.contents(package):
+            print(license_dir)
+            if license_dir.startswith("__"):
+                continue
+            subpackage = ".".join((package, license_dir))
+            header = importlib.resources.read_text(subpackage, "header.txt")
+            license = importlib.resources.read_text(subpackage, "LICENSE.txt")
+            data.name_to_license[license_dir] = "\n\n\n\n".join((header, license))
+        fp = importlib.resources.path(".".join((root, "icons")), "cricket.ico")
+        # plyer requires an ico filepath, it only reads from the file anyway so
+        # shouldn't be an issue with regard to closing cleanly
+        data.icon_path = fp.__enter__()
+        atexit.register(fp.__exit__, None, None, None)
+
+    data.license_radios = [
+        sg.Radio(name, 1, default=False, key="license_" + name, enable_events=True)
+        for name in data.name_to_license
+    ]
+    return data
+
+
 def main():
 
-    app_name = "cricket-scorer"
+    app_name = "cricket_scorer"
 
     sg.theme('Dark Blue 3')  # please make your creations colorful
 
@@ -120,7 +179,7 @@ def main():
     # I think the problem is elsewhere
     # print("Using settings file:", user_settings_file.get_filename())
     # Must set this
-    user_settings_file.set_location("cricket-scorer-cache.json")
+    user_settings_file.set_location("cricket_scorer-cache.json")
     log.debug("Using settings file:", user_settings_file.get_filename())
 
     keys = {
@@ -160,45 +219,14 @@ def main():
 
     sender_profiles = profiles.SENDER_PROFILES
 
-    # Extract licenses from a folder, store them in a dict
-    # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html
-    name_to_license = {}
-
-    def join_text_to_license(text, license):
-        return ("\n\n" + "-" * 20 + "\n\n").join((text, license))
-
-    # Add in this project's license
-    lgplv3 = (pathlib.Path.cwd() / __file__).with_name("COPYING.LESSER").read_text()
-    gplv3 = (pathlib.Path.cwd() / __file__).with_name("LICENSE.txt").read_text()
-    header = textwrap.dedent("""
-    cricket-scorer
-        Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
-        https://github.com/Arghnews/cricket-scorer
-        GNU Lesser General Public License v3.0
-    """).lstrip()
-    name_to_license[app_name] = join_text_to_license(header, "\n\n\n\n".join((lgplv3, gplv3)))
-
-    # Add 3rd party licenses
-    licenses_folder = (pathlib.Path.cwd() / __file__).with_name("3rd party licenses")
-    assert licenses_folder.exists()
-    for license_dir in licenses_folder.iterdir():
-        license_for = license_dir.name
-        text_file, license_file = license_dir / "LICENSE_info.txt", license_dir / "LICENSE.txt"
-        text, license = text_file.read_text(), license_file.read_text()
-        name_to_license[license_for] = join_text_to_license(text, license)
-
-    license_radios = []
-    for name in name_to_license:
-        default = False
-        license_radios.append(
-            sg.Radio(name, 1, default=default, key="license_" + name, enable_events=True))
+    external_resources = get_resources()
 
     # yapf: disable
     licenses_layout = [
         [
             sg.Frame("Licenses for software components",
                 [
-                    license_radios,
+                    external_resources.license_radios,
                 ],
             ),
         ],
@@ -549,18 +577,8 @@ def main():
         desktop_error_notifications=True,
     )
 
-    # Get the icon ico file path from where we are running and pass it to the
-    # appropriate methods, the window and the plyer notifications
-    # https://pyinstaller.readthedocs.io/en/stable/runtime-information.html
-    icon = (pathlib.Path.cwd() / __file__).with_name("cricket.ico")
-    # We always expect this icon to be present
-    icon_present = icon.exists() and icon.is_file()
-    window_opts, notify_opts = {}, {}
-    if icon_present:
-        window_opts = {"icon": str(icon)}
-        notify_opts = {"app_icon": str(icon)}
-
     def _send_desktop_notification(title, message, log, app_name, app_icon, timeout=10):
+        assert isinstance(app_icon, str)
         try:
             plyer.notification.notify(
                 title=title,
@@ -575,7 +593,7 @@ def main():
     send_desktop_notification = functools.partial(_send_desktop_notification,
                                                   log=log,
                                                   app_name=app_name,
-                                                  **notify_opts)
+                                                  app_icon=str(external_resources.icon_path))
 
     args = None
 
@@ -583,7 +601,7 @@ def main():
         window = sg.Window(
             app_name,
             layout,
-            **window_opts,
+            icon=external_resources.icon_path,
             finalize=True,
             return_keyboard_events=True,
             resizable=True,
@@ -598,7 +616,8 @@ def main():
                             send_desktop_notification)
 
         args = gui_main_loop(log, sender_profiles, window, state, user_settings_file,
-                             log_output_filter, send_desktop_notification, name_to_license)
+                             log_output_filter, send_desktop_notification,
+                             external_resources.name_to_license)
 
         stop_running(state)
 
@@ -646,6 +665,7 @@ def main():
         log.debug("Timing summary:\n" + "\n".join(state.timer.summary()))
         if args is not None:
             args.close()
+        log.debug("Done, closing")
         window.close()
 
 
@@ -784,7 +804,7 @@ def print_to_output(handler, record: logging.LogRecord, window, key, state,
         background_color = "#FF696C"  # A less intense red that's more legible
     if record.levelno >= logging.ERROR:
         if not state.general_error_flag and state.desktop_error_notifications:
-            send_desktop_notification("cricket-scorer error",
+            send_desktop_notification("cricket_scorer error",
                                       "An error has occurred, check the logs tab")
         state.general_error_flag = True
         state.general_error_flag_timer.reset()
@@ -973,11 +993,12 @@ def gui_main_loop(log: my_logger.LogWrapper, sender_profiles, window: sg.Window,
 
         state.timer.start("running")
         if state.do_run:
-            log.info("Trying to run program")
+            log.info("Program restarting backend")
             stop_running(state)
             if args is not None:
                 args.close()
             args = setup_args(log, sender_profiles, state)
+            log.info("Trying to run program")
             state.do_run = False
             window["log_tab"].select()
             # state.running will have been set True or False by setup_args
@@ -1057,8 +1078,8 @@ def gui_main_loop(log: my_logger.LogWrapper, sender_profiles, window: sg.Window,
 
         if send_notify:
             log.debug("Sending desktop notification about lost connection")
-            send_desktop_notification("cricket-scorer lost_connection",
-                                      "cricket-scorer has lost connection")
+            send_desktop_notification("cricket_scorer lost_connection",
+                                      "cricket_scorer has lost connection")
         window["stop_disconnect_notifications"].update(visible=state.lost_connection_notifications)
         state.timer.stop("desktop notify disconnect")
 
