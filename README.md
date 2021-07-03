@@ -5,8 +5,20 @@ This project is to connect a mains powered digital (LEDs) cricket scoreboard ove
 <br>
 
 # To get the program
-- Click [this link](https://github.com/Arghnews/cricket_scorer/releases/latest) and select the version to download that fits your computer
-- Double click and run the program
+- These instructions are for Windows
+- The app currently supports screen resolutions of 1366 by 768 and bigger
+- Click [this link to go to the downloads page](https://github.com/Arghnews/cricket_scorer/releases/latest)
+
+- Click to download the file that fits your Windows version and architecture:
+  * For Windows 8 64bit: cricket_scorer.Windows8.1.64bit.exe
+  * For Windows 10 64bit: cricket_scorer.Windows10.64bit.exe
+- Double click and run the downloaded program
+  - If you get Windows Smartscreen annoying stuff, click more options and run anyway
+  - If you get a popup saying this app is by an unknown publisher, also click run
+  - These features are complaining that this app isn't digitially signed using a certificate that has been verified by a certificate authority that Microsoft trusts. This requires a company, and may cost in the region of several hundred pounds per year, to check that your app isn't something nasty. Obviously this is not viable for a piece of free and open source software like this. Thus, please ignore this rubbish and click more options or run anyway etc. on the popups
+
+- If you get Windows popups asking to allow the app through the firewall, please allow it
+  * The app needs to receive data using UDP on port 2520 (and send data using UDP)
 
 <br>
 

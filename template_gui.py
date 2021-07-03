@@ -235,7 +235,7 @@ def main():
                 [
                     [
                         sg.Multiline(
-                            size=(120, 16),
+                            size=(120, 12),
                             font=("arial", 13),
                             key="license_multiline",
                             autoscroll=False,
@@ -415,7 +415,7 @@ def main():
     ],
                          [
                              sg.Multiline(
-                                 size=(140, 19),
+                                 size=(140, 15),
                                  font=("arial", 13),
                                  key="log_output",
                                  autoscroll=True,
@@ -492,20 +492,20 @@ def main():
     ]
 
     layout = [
-        [sg.Frame("Status", status_layout, key="status_row", pad=((5, 5), (5, 15)))],
+        [sg.Frame("Status", status_layout, key="status_row", pad=((5, 5), (0, 5)))],
         [
             sg.TabGroup(tab_group_layout,
                         font=("arial", 20),
                         key="tab_group_layout",
                         enable_events=True,
-                        pad=((55, 5), (5, 20))),
+                        pad=((55, 5), (5, 5))),
         ],
         [
             sg.Frame(
                 "User actions",
                 user_actions_layout,
                 vertical_alignment="center",
-                pad=((5, 5), (20, 5)),
+                pad=((5, 5), (10, 5)),
             )
         ],
     ]
