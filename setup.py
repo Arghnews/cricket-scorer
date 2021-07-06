@@ -54,8 +54,8 @@ def copy_licenses_to_data_dir():
     root = pathlib.Path("src/cricket_scorer/data/licenses")
     assert root.exists() and root.is_dir()
     dst = root.joinpath("cricket_scorer")
-    assert dst.exists()
-    # dst.mkdir(parents=True, exist_ok=True)
+    #  assert dst.exists(), f"{dst}"
+    dst.mkdir(parents=True, exist_ok=True)
 
     shutil.copyfile(license_header, dst.joinpath("header.txt"))
     dst.joinpath("LICENSE.txt").write_text("\n\n\n\n".join(
