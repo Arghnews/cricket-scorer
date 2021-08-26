@@ -44,7 +44,7 @@ ________________________          UDP packets         __________________________
 |     Control box      |    .                    .    |     Mark 1 Cricket Scoreboard     |
 |                      |   //                    \\   |                                   |
 |   Raspberry pi - i2c |__//                      \\__|     Raspberry pi - i2c bus        |
-|    usb wifi antennae |--/                        \--|        Ad hoc wifi network        |
+|    usb wifi antennae |--/                        \--|        Wifi access point          |
 |______________________|                              |                                   |
                                                       |                                   |
                                                       |___________________________________|
@@ -54,7 +54,7 @@ _________________________                       .     __________________________
 |     PC or Laptop     |    .                   \\    |     Mark 2 Cricket Scoreboard     |
 |                      |   //                    \\   |                                   |
 |                      |__//                      \\__|   Raspberry pi - i2c bus          |
-|        wifi antennae |--/                        \--|       Ad hoc wifi network         |
+|        wifi antennae |--/                        \--|       Wifi access point           |
 |                      |                              |                                   |
 |   Microsoft Excel    |                              |                                   |
 |         ⇅            |                             |                                    |
