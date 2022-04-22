@@ -157,11 +157,11 @@ if my_platform.EXCEL_ENABLED:
         .add_score_reader(score_reader_excel.get_score_reader)
         )
 
-SENDER_PROFILES.add_based_on(
-    "excel_live", "sender_args_base",
-    SENDER_PROFILES.get_profile_class().add_receive_loop_timeout_milliseconds(0)
-    .add_last_received_timer_seconds(35)
-    .add_score_reader(score_reader_excel.get_score_reader)
-    )
+    SENDER_PROFILES.add_based_on(
+        "excel_live", "sender_args_base",
+        SENDER_PROFILES.get_profile_class().add_receive_loop_timeout_milliseconds(0)
+        .add_last_received_timer_seconds(35)
+        .add_score_reader(score_reader_excel.get_score_reader)
+        )
 
 # yapf: enable
