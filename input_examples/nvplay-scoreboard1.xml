@@ -1,0 +1,59 @@
+<nvplay>
+  <scoreboard>
+    <field key="InningsTotalExtras" max="3" desc="Innings Total Extras"> 90</field>
+    <field key="InningsRuns" max="3" desc="Innings Runs">189</field>
+    <field key="InningsWickets" max="3" desc="Innings Wickets">  6</field>
+    <field key="InningsCompletedOvers" max="3" desc="Innings overs bowled (not balls)">  8</field>
+    <field key="RunsRequiredToWin" max="3" desc="Runs required to win (reducing, not target)">   </field>
+    <field key="OversRemaining" max="3" desc="Overs remaining (not balls)"> 12</field>
+    <field key="BallsRemaining" max="3" desc="Total balls remaining"> 70</field>
+    <field key="CurrentOverBallsCompleted" max="3" desc="Current over legitimate balls completed">  2</field>
+    <field key="NorthEnd_BowlerShirtNumber" max="3" desc="North end bowler shirt number">  1</field>
+    <field key="NorthEnd_BowlerCompletedOvers" max="3" desc="North end bowler overs (without balls)">  4</field>
+    <field key="NorthEnd_BowlerCurrent" max="1" desc="North end bowler is current bowler">*</field>
+    <field key="SouthEnd_BowlerShirtNumber" max="3" desc="South end bowler shirt number">  2</field>
+    <field key="SouthEnd_BowlerCompletedOvers" max="3" desc="South end bowler overs (without balls)">  4</field>
+    <field key="SouthEnd_BowlerCurrent" max="1" desc="South end bowler is current bowler">   </field>
+    <field key="CurrentPartnership_Runs" max="3" desc="Current partnership runs"> 45</field>
+    <field key="CurrentPartnership_Balls" max="3" desc="Current parnership balls"> 13</field>
+    <field key="DlsParScore" max="3" desc="Duckworth Lewis Stern Display Value (end of ball or end of over, or current for break in play)">   </field>
+    <field key="DlsParScoreCurrent" max="3" desc="Duckworth Lewis Stern Par Score (current ball)">   </field>
+    <field key="CurrentRunRateNoDecimal" max="3" desc="Current Run Rate with no decimal point, allowing for use on LED board with 3 digits. The last digit is the decimal part e.g. 123 is 12.3 per over, 030 is 3 per over">227</field>
+    <field key="RequiredRunRateNoDecimal" max="3" desc="Required Run Rate with no decimal point, allowing for use on LED board with 3 digits. The last digit is the decimal part e.g. 123 is 12.3 per over, 030 is 3 per over">   </field>
+    <field key="CurrentRunsPerBallNoDecimal" max="3" desc="Current Run Rate per ball with no decimal point, allowing for use on LED board with 3 digits. The last digit is the decimal part e.g. 123 is 12.3 per ball, 030 is 3 per ball"> 37</field>
+    <field key="RequiredRunsPerBallNoDecimal" max="3" desc="Required Run Rate per ball with no decimal point, allowing for use on LED board with 3 digits. The last digit is the decimal part e.g. 123 is 12.3 per ball, 030 is 3 per ball">   </field>
+    <field key="LastWicketBatterRuns" max="3" desc="Last wicket, batter's runs (Last Man)">  0</field>
+    <field key="LastWicketRuns" max="3" desc="Last wicket, team runs">144</field>
+    <field key="LastWicketHowOutShort" max="2" desc="Last wicket, how out short (max 2 characters)">RO</field>
+    <field key="LastWicketFielderShirtNumber" max="3" desc="Last wicket, fielder shirt number">  3</field>
+    <field key="LastWicketBowlerShirtNumber" max="3" desc="Last wicket, bowler shirt number">   </field>
+    <field key="UmpireLight" max="1" desc="Umpire Light (not implemented)">0</field>
+    <field key="CutOffTimeHours" max="3" desc="Cut off time - hours">   </field>
+    <field key="CutOffTimeMinutes" max="3" desc="Cut off time - minutes">   </field>
+    <field key="LeftBatNumber" max="3" desc="Left side batter position as displayed on LED scoreboards">  7</field>
+    <field key="LeftBatterShirtNumber" max="3" desc="Left side batter shirt number">  7</field>
+    <field key="LeftBatterMins" max="3" desc="Left side batter minutes">133</field>
+    <field key="LeftBatterBalls" max="3" desc="Left side batter balls faced">  7</field>
+    <field key="LeftBatterFours" max="3" desc="Left side batter fours">  0</field>
+    <field key="LeftBatterSixes" max="3" desc="Left side batter sixes">  2</field>
+    <field key="LeftBatterScore" max="3" desc="Left side batter runs"> 16</field>
+    <field key="LeftBatStriker" max="1" desc="Left side batter is current striker">*</field>
+    <field key="LeftBatterDismissed" max="3" desc="Left side batter has been dismissed (OUT)">   </field>
+    <field key="RightBatNumber" max="3" desc="Right side batter position as displayed on LED scoreboards">  8</field>
+    <field key="RightBatterShirtNumber" max="3" desc="Right side batter shirt number">  8</field>
+    <field key="RightBatterMins" max="3" desc="Right side batter minutes">132</field>
+    <field key="RightBatterBalls" max="3" desc="Right side batter balls faced">  7</field>
+    <field key="RightBatterFours" max="3" desc="Right side batter fours">  1</field>
+    <field key="RightBatterSixes" max="3" desc="Right side batter sixes">  3</field>
+    <field key="RightBatterScore" max="3" desc="Right side batter runs"> 27</field>
+    <field key="RightBatStriker" max="1" desc="Right side batter is current striker">   </field>
+    <field key="RightBatterDismissed" max="3" desc="Right side batter has been dismissed (OUT)">   </field>
+    <field key="Innings1_TotalRuns" max="3" desc="Innings 1 total runs">189</field>
+    <field key="Innings2_TotalRuns" max="3" desc="Innings 2 total runs">   </field>
+    <field key="Innings3_TotalRuns" max="3" desc="Innings 3 total runs">   </field>
+    <field key="Innings4_TotalRuns" max="3" desc="Innings 4 total runs">   </field>
+    <field key="FirstInningsScore" max="3" desc="Score for the other team in 2 innings match, otherwise the last time team batted">   </field>
+    <field key="Target" max="3" desc="Target to win (not reducing), taking into account shortened match scenarios and DL/S">   </field>
+    <field key="BatStrikerLeftRightOrdinal" max="3" desc="Number to indicate which of the Left/Right batter is striker (0, 1, 2)">  1</field>
+  </scoreboard>
+</nvplay>
