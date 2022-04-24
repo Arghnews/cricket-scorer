@@ -5,3 +5,5 @@ dist/
 upx-*/*
 src/cricket_scorer/data/licenses/cricket_scorer/*
 __pycache__
+*.swp
+*.swo

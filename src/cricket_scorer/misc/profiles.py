@@ -2,7 +2,7 @@ from . import params
 
 import cricket_scorer.misc.my_platform as my_platform
 
-from cricket_scorer.score_handlers import misc
+from cricket_scorer.score_handlers import misc, score_reader_xml
 
 if my_platform.I2C_ENABLED:
     from cricket_scorer.score_handlers import (score_reader_i2c, score_writer_i2c_mark1,
@@ -71,7 +71,7 @@ if my_platform.I2C_ENABLED:
         )
 
     RECEIVER_PROFILES.add_based_on(
-        "test_receiver_args_live_single_digit", "receiver_args_mark2",
+        "test_receiver_args_single_digit", "receiver_args_mark2",
         RECEIVER_PROFILES.get_profile_class()
         .add_score_writer(score_writer_i2c_mark2_single_digit.ScoreWriterI2cSingleDigit)
         )
@@ -163,5 +163,12 @@ if my_platform.EXCEL_ENABLED:
         .add_last_received_timer_seconds(35)
         .add_score_reader(score_reader_excel.get_score_reader)
         )
+
+SENDER_PROFILES.add_based_on(
+    "xml_live", "sender_args_base",
+    SENDER_PROFILES.get_profile_class().add_receive_loop_timeout_milliseconds(0)
+    .add_last_received_timer_seconds(35)
+    .add_score_reader(score_reader_xml.get_score_reader)
+    )
 
 # yapf: enable

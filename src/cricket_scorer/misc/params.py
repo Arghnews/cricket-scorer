@@ -172,8 +172,8 @@ class ArgWrapper:
         if self._depends_on_logger:
             self._value = self._builder_func.func(logger, **self._builder_func.args)
         else:
-            # print(self._builder_func)
-            # print(self._builder_func.args)
+            #  print(self._builder_func)
+            #  print(self._builder_func.args)
             self._value = self._builder_func.func(**self._builder_func.args)
         self._is_initialised = True
 

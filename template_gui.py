@@ -161,13 +161,19 @@ def main():
     log = my_logger.get_logger()
 
     # https://en.wikipedia.org/wiki/List_of_Microsoft_Office_filename_extensions
+    # Now we also support reading from Cricket Scorer Pro xml files so add xml
     extensions = (
-        ("All Excel files", "*.xl*"),
+        ("Excel or xml files", "*.x*"),
         ("ALL Files", "*.*"),
+
+        ("All Excel files", "*.xl*"),
+        ("Extensible Markup Language", "*.xml"),
+
         ("Excel workbook", "*.xlsx"),
         ("Excel macro-enabled workbook", "*.xlsm"),
         ("Legacy Excel worksheets", "*.xls"),
         ("Legacy Excel macro", "*.xlm"),
+
     )
 
     user_settings_file = sg.UserSettings()
@@ -266,9 +272,25 @@ def main():
         )
     ]
 
+    user_settings_layout_excel_only_part = [
+            [sg.Text("Worksheet name:", key="worksheet_name_text"),
+             sg.Input(settings["worksheet"], key="worksheet")],
+            [sg.Text("Cells where scores live in spreadsheet:", key="cells_where_scores_text")],
+            [
+                sg.Text("Total:"),
+                sg.Input(settings["total"], size=(9, 1), key="total"),
+                sg.Text("Wickets:"),
+                sg.Input(settings["wickets"], size=(9, 1), key="wickets"),
+                sg.Text("Overs:"),
+                sg.Input(settings["overs"], size=(9, 1), key="overs"),
+                sg.Text("1st Innings:"),
+                sg.Input(settings["innings"], size=(9, 1), key="innings"),
+            ],
+        ]
+
     user_settings_layout = [
         [
-            sg.Text("Spreadsheet:"),
+            sg.Text("Spreadsheet or xml:"),
             sg.FileBrowse(
                 key="spreadsheet_selector",
                 #  enable_events = True,
@@ -281,19 +303,8 @@ def main():
                     size=(80, 1),
                     key="spreadsheet_path")
         ],
-        [sg.Text("Worksheet name:"),
-         sg.Input(settings["worksheet"], key="worksheet")],
-        [sg.Text("Cells where scores live in spreadsheet:")],
-        [
-            sg.Text("Total:"),
-            sg.Input(settings["total"], size=(9, 1), key="total"),
-            sg.Text("Wickets:"),
-            sg.Input(settings["wickets"], size=(9, 1), key="wickets"),
-            sg.Text("Overs:"),
-            sg.Input(settings["overs"], size=(9, 1), key="overs"),
-            sg.Text("1st Innings:"),
-            sg.Input(settings["innings"], size=(9, 1), key="innings"),
-        ],
+        [sg.Frame("", user_settings_layout_excel_only_part,
+            key="user_settings_layout_excel_only_part" )],
         [
             sg.Text("Logs folder:", pad=(5, 10)),
             sg.Checkbox("", default=settings["logs_folder_toggle"], key="logs_folder_toggle"),
@@ -758,10 +769,18 @@ def setup_args_impl(log, sender_profiles, state):
     state.timer.start("init score reader")
     try:
         log.info("Refreshing score reader with latest settings")
-        args.score_reader.refresh_excel(state.settings["spreadsheet_path"],
-                                        state.settings["worksheet"], state.settings["total"],
-                                        state.settings["wickets"], state.settings["overs"],
-                                        state.settings["innings"])
+
+        # TODO: this is a bodge for now because I think doing it "properly" will
+        # end up doing a bigger architectural rework anyway
+
+        if hasattr(args.score_reader, "refresh_excel"):
+            args.score_reader.refresh_excel(state.settings["spreadsheet_path"],
+                                            state.settings["worksheet"], state.settings["total"],
+                                            state.settings["wickets"], state.settings["overs"],
+                                            state.settings["innings"])
+        elif hasattr(args.score_reader, "refresh_xml"):
+            args.score_reader.refresh_xml(state.settings["spreadsheet_path"])
+
     except Exception as e:
         log_error(f"Error refreshing score reader (opening/reading from Excel): {e}")
         return args, False
@@ -965,6 +984,8 @@ def gui_main_loop(log: my_logger.LogWrapper, sender_profiles, window: sg.Window,
     while not state.done:
         event, values = window.read(10)
 
+        old_spreadsheet_path = state.settings.get("spreadsheet_path")
+
         state.timer.start("handle events")
         handle_events(log, user_settings_file, state, event, window, values, name_to_license)
         state.timer.stop("handle events")
@@ -976,6 +997,26 @@ def gui_main_loop(log: my_logger.LogWrapper, sender_profiles, window: sg.Window,
         # Not sure on order of update_settings and handle_events
         # Update the state.settings dict
         update_settings(state.settings, values, log_output_filter)
+
+        # Bodge-ish fix for now, for live. Need to change profile between
+        # excel_live and xml_live depending on selected filetype extension
+        spreadsheet_path = state.settings.get("spreadsheet_path")
+        if spreadsheet_path != old_spreadsheet_path:
+            # TODO: add something in to allow settings a test mode so don't go
+            # insane when selecting files to test and this overwrites it. For
+            # live this is fine as only xml_live or excel_live should ever be
+            # selected
+            # Also this breaks on Ubuntu as the excel_live profile is only
+            # loaded on Windows (as you won't be able to open Excel on Linux).
+            # Again this only matters for testing.
+            if spreadsheet_path.lower().endswith(".xml"):
+                log.debug(f"spreadsheet_path from {old_spreadsheet_path} "
+                        f"to {spreadsheet_path}, using xml_live profile")
+                state.settings["profile"] = "xml_live"
+            else:
+                log.debug(f"spreadsheet_path from {old_spreadsheet_path} "
+                        f"to {spreadsheet_path}, using excel_live profile")
+                state.settings["profile"] = "excel_live"
 
         # Set a bool toggling whether desktop error notifications are enabled
         state.desktop_error_notifications = values["desktop_error_notifications"]
@@ -1008,6 +1049,13 @@ def gui_main_loop(log: my_logger.LogWrapper, sender_profiles, window: sg.Window,
             else:
                 log.info("Failed to run program (see log)")
         state.timer.stop("running")
+
+        if state.settings.get("spreadsheet_path").endswith("xml"):
+            # Only want to show things like cell selection if user has selected
+            # an excel spreadsheet, if using xml then don't show it
+            window["user_settings_layout_excel_only_part"].update(visible=False)
+        else:
+            window["user_settings_layout_excel_only_part"].update(visible=True)
 
         # If running, read the score from Excel
         state.timer.start("reader")
