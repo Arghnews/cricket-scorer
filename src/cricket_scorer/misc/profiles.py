@@ -13,6 +13,8 @@ from cricket_scorer.score_handlers import score_reader_excel_dummy
 if my_platform.EXCEL_ENABLED:
     from cricket_scorer.score_handlers import score_reader_excel
 
+# NOTE: this REQUIRES xml_live and excel_live profiles loaded on windows to work
+
 SENDER_PROFILES = params.Profiles(params.SenderProfileBuilder)
 RECEIVER_PROFILES = params.Profiles(params.ReceiverProfileBuilder)
 
