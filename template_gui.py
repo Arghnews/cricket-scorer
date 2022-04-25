@@ -1033,11 +1033,11 @@ def gui_main_loop(log: my_logger.LogWrapper, sender_profiles, window: sg.Window,
             # Again this only matters for testing.
 
             i = 0
+            profiles = window["profile"].get_list_values()
             if spreadsheet_path.lower().endswith(".xml"):
                 log.debug(f"spreadsheet_path from {old_spreadsheet_path} "
                           f"to {spreadsheet_path}, using xml_live profile")
                 state.settings["profile"] = "xml_live"
-                profiles = window["profile"].get_list_values()
                 i = profiles.index("xml_live")
             else:
                 log.debug(f"spreadsheet_path from {old_spreadsheet_path} "
