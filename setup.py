@@ -67,7 +67,7 @@ copy_licenses_to_data_dir()
 
 setuptools.setup(
     name="cricket_scorer-arghnews",
-    version="0.1.0",
+    version="0.1.2",
     author="Justin Riddell",
     author_email="arghnews@hotmail.co.uk",
     description="Cricket scoreboard remote controller and MS Excel project",

@@ -64,6 +64,7 @@ def main():
     icon_path = os.path.join(data_prefix, "cricket.ico")
 
     upx_path, upx = find_upx(), ""
+    assert upx_path is not None
     if upx_path is not None:
         upx = "--upx-dir=" + os.path.normpath(upx_path)
 
