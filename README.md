@@ -10,8 +10,7 @@ This project is to connect a mains powered digital (LEDs) cricket scoreboard ove
 - Click [this link to go to the downloads page](https://github.com/Arghnews/cricket_scorer/releases/latest)
 
 - Click to download the file that fits your Windows version and architecture:
-  * For Windows 8 64bit: cricket_scorer.Windows8.1.64bit.exe
-  * For Windows 10 64bit: cricket_scorer.Windows10.64bit.exe
+  * For Windows 10 64bit or Windows 8 64bit use: cricket_scorer.Windows10.64bit.exe
 - Double click and run the downloaded program
   - If you get Windows Smartscreen annoying stuff, click more options and run anyway
   - If you get a popup saying this app is by an unknown publisher, also click run
