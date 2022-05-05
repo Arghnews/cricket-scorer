@@ -5,6 +5,7 @@ from . import score_reader_excel_impl
 
 class SpreadsheetWrapper:
     """Actual spreadsheet is stored here, interfacing with Excel via xlwings"""
+
     def __init__(self):
         self._spreadsheet = None
         pass
@@ -16,10 +17,17 @@ class SpreadsheetWrapper:
         try:
             self._spreadsheet.activate(steal_focus=True)
         except Exception as e:
-            log.debug(f"Unable to activate/focus workbook {e}")
+            log.debug(f"Unable to activate/focus workbook, spreadsheet: "
+                      f"{self._spreadsheet}, worksheet: {self._worksheet} {e}")
 
     def read_cell_value(self, cell_score_data):
-        return self._spreadsheet.sheets[self._worksheet].range(cell_score_data.cell).value
+        # Add additional error diagnostic info in case have selected wrong worksheet
+        try:
+            return self._spreadsheet.sheets[self._worksheet].range(cell_score_data.cell).value
+        except Exception as e:
+            raise RuntimeError(
+                f"Error reading cell data from worksheet. Have you checked things like "
+                f"the worksheet name is correct? Original error: {e}")
 
     def close(self):
         pass

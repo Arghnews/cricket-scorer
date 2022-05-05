@@ -42,6 +42,7 @@ class ScoreReaderExcel:
     with a Microsoft Excel spreadsheet to read values from cells corresponding
     to scores and return the latest valid scores via self.read_score()
     """
+
     def __init__(self, SpreadsheetClass, logger):
         self._log = logger
         self._spreadsheet = SpreadsheetClass()
@@ -56,10 +57,12 @@ class ScoreReaderExcel:
                       innings_cell):
         self._log.debug("Spreadsheet wrapper - update")
         if self._running:
-            self._log.debug("Spreadsheet wrapper - already started, closing prior")
+            self._log.debug(
+                "Spreadsheet wrapper - already started, closing prior")
             self._spreadsheet.close()
         self._running = True
-        self._log.debug("Spreadsheet wrapper - opening excelwings book")
+        self._log.debug(
+            f"Spreadsheet wrapper - opening excelwings book {worksheet}")
         self._spreadsheet.reinit(self._log, spreadsheet_path, worksheet)
         for key, val in zip(self._cells.keys(),
                             [total_cell, wickets_cell, overs_cell, innings_cell]):
@@ -85,7 +88,8 @@ class ScoreReaderExcel:
 
         self._error_msg = ""
         if len(unparsable_score_names) > 0:
-            self._error_msg = "Could not parse " + ", ".join(unparsable_score_names)
+            self._error_msg = "Could not parse " + \
+                ", ".join(unparsable_score_names)
 
         return cricket_scorer.score_handlers.scoredata.ScoreData(score=self._score_bytes,
                                                                  error_msg=self._error_msg)
