@@ -10,7 +10,6 @@ import multiprocessing
 import os
 import pathlib
 import platform
-import subprocess
 import sys
 import textwrap
 import time
@@ -131,12 +130,15 @@ def get_resources():
         data.icon_path = root.joinpath("cricket_scorer/data/icons/cricket.ico")
         assert data.icon_path.exists()
 
+        with open(root.joinpath("version.txt"), "r") as f:
+            data.version = f.read()
+
     else:
         root = "cricket_scorer.data"
         package = ".".join((root, "licenses"))
         data.name_to_license = {}
         for license_dir in importlib.resources.contents(package):
-            print(license_dir)
+            # print(license_dir)
             if license_dir.startswith("__"):
                 continue
             subpackage = ".".join((package, license_dir))
@@ -159,8 +161,6 @@ def get_resources():
 
 
 def main():
-
-    app_name = "cricket_scorer"
 
     sg.theme('Dark Blue 3')  # please make your creations colorful
 
@@ -235,6 +235,11 @@ def main():
     sender_profiles = profiles.SENDER_PROFILES
 
     external_resources = get_resources()
+
+    app_name = "cricket_scorer"
+    # Append version, currently only in packaged version
+    if hasattr(external_resources, "version"):
+        app_name += " v" + str(external_resources.version)
 
     # yapf: disable
     licenses_layout = [

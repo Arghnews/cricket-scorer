@@ -4,6 +4,7 @@ import os
 import platform
 import re
 import shlex
+import shutil
 import operator
 import subprocess
 import sys
@@ -38,7 +39,8 @@ def find_upx():
     """
 
     # https://stackoverflow.com/a/59938961/8594193
-    list_subfolders_with_paths = [f.path for f in os.scandir(".") if f.is_dir()]
+    list_subfolders_with_paths = [
+        f.path for f in os.scandir(".") if f.is_dir()]
 
     # As per https://packaging.pypa.io/en/latest/version.html
     upx_folder_reg = re.compile(r".\\upx-(" + version.VERSION_PATTERN + r")-win64",
@@ -59,9 +61,11 @@ def main():
 
     app_name = make_app_name("cricket_scorer")
     package_base = os.path.normpath("src/cricket_scorer")
-    data_prefix = os.path.join(package_base, "data", "icons")
+    data_dir = os.path.join(package_base, "data")
+    shutil.copyfile("VERSION.txt", os.path.join(data_dir, "VERSION.txt"))
+    icons_dir = os.path.join(data_dir, "icons")
     executable = os.path.normpath("./template_gui.py")
-    icon_path = os.path.join(data_prefix, "cricket.ico")
+    icon_path = os.path.join(icons_dir, "cricket.ico")
 
     upx_path, upx = find_upx(), ""
     assert upx_path is not None
@@ -71,12 +75,14 @@ def main():
     cmd = f"""pyinstaller.exe
         --noconfirm
         -p "{package_base}"
+        -p "{data_dir}"
         --collect-data "cricket_scorer.data"
         --icon "{icon_path}"
         --hidden-import plyer.platforms.win.notification
         --add-data "LICENSE.txt{os.pathsep}."
         --add-data "COPYING.LESSER{os.pathsep}."
         --add-data "license_header.txt{os.pathsep}."
+        --add-data "VERSION.txt{os.pathsep}."
         {upx}
         -n {app_name}
         --clean

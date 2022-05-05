@@ -1,0 +1,59 @@
+<nvplay>
+  <scoreboard>
+    <field key="InningsTotalExtras" max="3">0</field>
+    <field key="InningsRuns" max="3">100</field>
+    <field key="InningsWickets" max="3">1</field>
+    <field key="InningsCompletedOvers" max="3">1</field>
+    <field key="RunsRequiredToWin" max="3" />
+    <field key="OversRemaining" max="3" />
+    <field key="BallsRemaining" max="3" />
+    <field key="CurrentOverBallsCompleted" max="3">5</field>
+    <field key="NorthEnd_BowlerShirtNumber" max="3">1</field>
+    <field key="NorthEnd_BowlerCompletedOvers" max="3">1</field>
+    <field key="NorthEnd_BowlerCurrent" max="1">   </field>
+    <field key="SouthEnd_BowlerShirtNumber" max="3">2</field>
+    <field key="SouthEnd_BowlerCompletedOvers" max="3">0</field>
+    <field key="SouthEnd_BowlerCurrent" max="1">*</field>
+    <field key="CurrentPartnership_Runs" max="3">6</field>
+    <field key="CurrentPartnership_Balls" max="3">5</field>
+    <field key="DlsParScore" max="3" />
+    <field key="DlsParScoreCurrent" max="3" />
+    <field key="CurrentRunRateNoDecimal" max="3">55</field>
+    <field key="RequiredRunRateNoDecimal" max="3" />
+    <field key="CurrentRunsPerBallNoDecimal" max="3">09</field>
+    <field key="RequiredRunsPerBallNoDecimal" max="3" />
+    <field key="LastWicketBatterRuns" max="3">2</field>
+    <field key="LastWicketRuns" max="3">4</field>
+    <field key="LastWicketHowOutShort" max="2">C</field>
+    <field key="LastWicketFielderShirtNumber" max="3" />
+    <field key="LastWicketBowlerShirtNumber" max="3">1</field>
+    <field key="UmpireLight" max="1">0</field>
+    <field key="CutOffTimeHours" max="3" />
+    <field key="CutOffTimeMinutes" max="3" />
+    <field key="LeftBatNumber" max="3">3</field>
+    <field key="LeftBatterShirtNumber" max="3">3</field>
+    <field key="LeftBatterMins" max="3">24369</field>
+    <field key="LeftBatterBalls" max="3">2</field>
+    <field key="LeftBatterFours" max="3">0</field>
+    <field key="LeftBatterSixes" max="3">0</field>
+    <field key="LeftBatterScore" max="3">2</field>
+    <field key="LeftBatStriker" max="1">   </field>
+    <field key="LeftBatterDismissed" max="3">   </field>
+    <field key="RightBatNumber" max="3">2</field>
+    <field key="RightBatterShirtNumber" max="3">2</field>
+    <field key="RightBatterMins" max="3">24378</field>
+    <field key="RightBatterBalls" max="3">5</field>
+    <field key="RightBatterFours" max="3">0</field>
+    <field key="RightBatterSixes" max="3">0</field>
+    <field key="RightBatterScore" max="3">6</field>
+    <field key="RightBatStriker" max="1">*</field>
+    <field key="RightBatterDismissed" max="3">   </field>
+    <field key="Innings1_TotalRuns" max="3">10</field>
+    <field key="Innings2_TotalRuns" max="3" />
+    <field key="Innings3_TotalRuns" max="3" />
+    <field key="Innings4_TotalRuns" max="3" />
+    <field key="FirstInningsScore" max="3" />
+    <field key="Target" max="3" />
+    <field key="BatStrikerLeftRightOrdinal" max="3">2</field>
+  </scoreboard>
+</nvplay>

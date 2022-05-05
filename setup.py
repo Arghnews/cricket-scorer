@@ -17,7 +17,7 @@ install_requires = [
 # package_data = {
 #     "license": ["LICENSE.txt", "COPYING.LESSER",],
 #     "icon": ["cricket.ico",],
-## "third_party_licenses": [str(d) for d in pathlib.Path("licenses").rglob("*.txt")],
+# "third_party_licenses": [str(d) for d in pathlib.Path("licenses").rglob("*.txt")],
 # }
 
 # yapf: enable
@@ -38,18 +38,21 @@ package_data = {
 }
 
 
-def copy_licenses_to_data_dir():
+def copy_licenses_and_version_to_data_dir():
     # Copy the LICENSE.txt (gplv3) and COPYING.LESSER (lgplv3) license files
     # from the project root into src/cricket_scorer/data/licenses/cricket_scorer
     # so they can be displayed in the GUI, and merge them into one file. Also
     # copy license_header.txt to the same folder and name it header.txt
+    # Also copy VERSION.txt in
 
     license_gplv3 = pathlib.Path("LICENSE.txt")
     license_lgplv3 = pathlib.Path("COPYING.LESSER")
     license_header = pathlib.Path("license_header.txt")
+    version_file = pathlib.Path("VERSION.txt")
     assert license_gplv3.exists()
     assert license_lgplv3.exists()
     assert license_header.exists()
+    assert version_file.exists()
 
     root = pathlib.Path("src/cricket_scorer/data/licenses")
     assert root.exists() and root.is_dir()
@@ -58,16 +61,23 @@ def copy_licenses_to_data_dir():
     dst.mkdir(parents=True, exist_ok=True)
 
     shutil.copyfile(license_header, dst.joinpath("header.txt"))
+    shutil.copyfile(version_file, dst.joinpath("VERSION.txt"))
     dst.joinpath("LICENSE.txt").write_text("\n\n\n\n".join(
         (license_lgplv3.read_text(), license_gplv3.read_text())))
     dst.joinpath("__init__.py").touch(exist_ok=True)
 
 
-copy_licenses_to_data_dir()
+copy_licenses_and_version_to_data_dir()
+
+
+def read_version():
+    with open("VERSION.txt", "r") as f:
+        return f.read()
+
 
 setuptools.setup(
     name="cricket_scorer-arghnews",
-    version="0.1.3",
+    version=read_version(),
     author="Justin Riddell",
     author_email="arghnews@hotmail.co.uk",
     description="Cricket scoreboard remote controller and MS Excel project",
